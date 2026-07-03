@@ -1,0 +1,313 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 The GIAS Authors */
+
+/* ============================================================
+   GIAS · Species Intelligence Report — production print stylesheet
+   Target: WeasyPrint (HTML/CSS → PDF).  Also renders on screen.
+
+   Design goals
+   1. FLOW-BASED. No fixed-height pages. Content streams and the
+      paged-media engine breaks it. A category with 2 facts or 200
+      facts renders the same way — it just uses more pages.
+   2. NOTHING OVERFLOWS. Tables wrap, grids reflow, long tokens
+      break. See the "robustness" rules at the bottom.
+   3. Maps 1:1 to the pipeline data model (see report.html.jinja).
+
+   Palette + type mirror tokens.css so the app and the PDF match.
+   Fonts: for offline WeasyPrint, install the TTFs and drop the
+   @import; the family names below stay the same.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --ocean:#136BAE; --ocean-700:#0E5589; --ocean-900:#0B3A60;
+  --cyan:#46B6CB; --cyan-600:#2E9DB5; --cyan-soft:#CFEAF0; --cyan-wash:#EAF6F9;
+  --kelp:#2E9E8B; --kelp-soft:#DCEFE9; --gold:#DDA033; --gold-soft:#F6EBD2;
+  --coral:#D9544A; --coral-soft:#F6DEDB; --lav:#7E86C8; --lav-soft:#E6E7F4;
+  --ink:#102A38; --ink-2:#3C5867; --slate:#6A828F; --slate-2:#93A7B1;
+  --line:#DBE6EA; --line-soft:#EAF1F3; --paper:#F2F7F8; --paper-2:#E9F1F3; --surface:#FFFFFF;
+  /* 'Noto Sans CJK JP' kept in every stack so Japanese/Chinese vernacular
+     names render even though the brand faces carry no CJK glyphs. */
+  --serif:'Newsreader','Noto Sans CJK JP',Georgia,serif; --sans:'Hanken Grotesk','Noto Sans CJK JP',system-ui,sans-serif; --mono:'IBM Plex Mono','Noto Sans CJK JP',ui-monospace,monospace;
+  --r-sm:7px; --r-md:11px; --r-lg:16px;
+}
+
+/* ============================================================
+   PAGE GEOMETRY  (WeasyPrint @page margin boxes)
+   The species name is captured into a named string and printed
+   in every running header; page numbers in the footer.
+   ============================================================ */
+@page{
+  size:A4; margin:18mm 17mm 16mm;
+  @top-left{ content: string(runsci); font-family:'Newsreader',serif; font-style:italic; font-size:9pt; color:#0B3A60; }
+  @top-right{ content:"GuardIAS · Invasive Species Intelligence Report"; font-family:'IBM Plex Mono',monospace; font-size:6.6pt; letter-spacing:.12em; text-transform:uppercase; color:#93A7B1; }
+  @bottom-left{ content:"GIAS · " string(runid); font-family:'IBM Plex Mono',monospace; font-size:6.6pt; letter-spacing:.06em; text-transform:uppercase; color:#93A7B1; }
+  @bottom-right{ content: counter(page) " / " counter(pages); font-family:'IBM Plex Mono',monospace; font-size:6.6pt; letter-spacing:.06em; color:#93A7B1; }
+}
+@page cover{ margin:0; @top-left{content:none} @top-right{content:none} @bottom-left{content:none} @bottom-right{content:none} }
+@page :first{ /* alias: first page is the cover */ }
+
+/* string capture — placed once near the top of <body> */
+.run-sci{ string-set: runsci content(); }
+.run-id { string-set: runid content(); }
+.u-hidden{ position:absolute; width:0; height:0; overflow:hidden; }
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*{ box-sizing:border-box; }
+html{ background:var(--paper); }
+body{ margin:0; font-family:var(--sans); color:var(--ink); background:var(--paper); -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+/* On screen we fake pages so authors can preview; in print the
+   @page engine owns pagination and .page is just a flow container. */
+.page-wrap{ display:flex; flex-direction:column; align-items:center; gap:20px; padding:30px 16px 70px; }
+.page{ width:210mm; min-height:297mm; background:var(--surface); padding:18mm 17mm 16mm; box-shadow:0 10px 40px rgba(16,42,56,.12); }
+.cover-page{ page:cover; padding:0; }
+
+@media print{
+  html,body{ background:#fff; }
+  .page-wrap{ display:block; padding:0; gap:0; }
+  .page{ width:auto; min-height:0; box-shadow:none; padding:0; }   /* @page margins take over */
+  .cover-page{ min-height:0; }
+  .screen-only{ display:none !important; }
+}
+
+/* ============================================================
+   PROSE
+   ============================================================ */
+.doc p, p.body{ font-size:10.5pt; line-height:1.6; color:#25323c; margin:0 0 7pt; orphans:3; widows:3; }
+.sci{ font-family:var(--serif); font-style:italic; }
+.lead{ font-size:12pt; line-height:1.55; color:var(--ink-2); }
+sup.ref{ color:var(--ocean); font-weight:700; font-size:.62em; font-family:var(--mono); }
+
+/* section heads — never strand a heading at a page bottom */
+.sec{ margin:0 0 18px; break-after:avoid-page; break-inside:avoid; }
+.sec-row{ display:flex; align-items:baseline; gap:12px; }
+.sec-row > div{ flex:1 1 auto; min-width:0; }
+.sec-no{ font-family:var(--mono); font-size:10pt; letter-spacing:.12em; color:var(--cyan-600); }
+.sec h2{ font-family:var(--serif); font-weight:500; font-size:21pt; line-height:1.05; color:var(--ocean-900); margin:0; letter-spacing:-.01em; }
+.sec-sub{ margin:6px 0 0; color:var(--slate); font-size:9.5pt; line-height:1.5; }
+.sec-rule{ height:2px; width:34px; background:var(--ocean); border-radius:2px; margin-top:12px; }
+h3.blk{ font-family:var(--mono); font-size:8.8pt; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ocean-700); margin:24px 0 11px; display:flex; align-items:center; gap:8px; break-after:avoid-page; }
+h3.blk::before{ content:""; width:6px; height:6px; border-radius:2px; background:var(--cyan); }
+
+/* ============================================================
+   1 · REGULATORY STATUS BOX   (pipeline Layer 3 output)
+   The status fields the RegulatoryStatusExtractor pops out of the
+   narrative. Rendered as its own callout, exactly as the pipeline
+   intends. Grows row by row — never overflows.
+   ============================================================ */
+.reg-status{ border:1px solid var(--line); border-left:4px solid var(--ocean); border-radius:var(--r-md); background:linear-gradient(180deg,#fff,var(--cyan-wash)); padding:14px 18px 7px; margin:0 0 24px; break-inside:avoid; }
+.reg-status__h{ font-family:var(--mono); font-size:8.5pt; letter-spacing:.12em; text-transform:uppercase; color:var(--ocean-700); margin-bottom:9px; display:flex; align-items:center; gap:8px; }
+.reg-status__h .pin{ width:7px; height:7px; border-radius:2px; background:var(--ocean); }
+.reg-row{ display:grid; grid-template-columns:1fr auto; gap:6px 14px; align-items:baseline; padding:7px 0; border-top:1px dashed var(--line); }
+.reg-row:first-of-type{ border-top:0; }
+.reg-row .k{ font-size:10pt; font-weight:600; color:var(--ink); }
+.reg-row .k small{ display:block; font-weight:400; font-size:8.5pt; color:var(--slate); margin-top:1px; }
+.reg-row .v{ font-size:10pt; font-weight:700; text-align:right; }
+.reg-row .src{ margin-left:8px; }
+
+/* ============================================================
+   2 · KPI / VERDICT TILES   — derived headline numbers
+   flex-wrap so any count of tiles reflows instead of clipping.
+   ============================================================ */
+.tiles{ display:flex; flex-wrap:wrap; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:var(--r-md); overflow:hidden; }
+.tile{ background:var(--surface); padding:11px 15px; flex:1 1 130px; }
+.tile__n{ font-family:var(--serif); font-size:21pt; font-weight:500; line-height:1; color:var(--ocean-900); letter-spacing:-.02em; }
+.tile__n small{ font-size:.6em; color:var(--cyan-600); }
+.tile__l{ font-size:8.5pt; color:var(--slate); margin-top:5px; line-height:1.35; }
+
+/* ============================================================
+   3 · FACT + AGREEMENT   (pipeline Layer 2 dedup output)
+   Each deduped fact carries {fact, sources[], agreement}.
+   Agreement = consensus | minority | single → the colour + tag.
+   This is the provenance/conflict mechanism, made visible.
+   ============================================================ */
+.facts{ display:flex; flex-direction:column; gap:11px; }
+/* No break-inside:avoid — a fact may hold a whole paragraph (e.g. a long
+   "Description"); forcing it onto one page overflows the page and collides
+   with following content. Let long cards split across pages (cf. §5 quotes). */
+.fact{ padding:9px 12px; border:1px solid var(--line); border-left-width:3px; border-radius:var(--r-sm); background:var(--surface); }
+.fact__b{ font-size:10pt; line-height:1.5; color:#25323c; }
+.fact__b b{ color:var(--ink); }
+.fact__meta{ display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; align-items:center; }
+.agree{ font-family:var(--mono); font-size:8pt; font-weight:600; letter-spacing:.03em; padding:2px 7px; border-radius:20px; white-space:nowrap; }
+.agree.translated{ background:var(--cyan-wash); color:var(--ocean-700); font-style:italic; }
+
+/* source provenance chip (mirrors tokens.css .src) */
+.src{ font-family:var(--mono); font-size:8pt; color:var(--ocean-700); background:var(--cyan-wash); border:1px solid var(--cyan-soft); border-radius:5px; padding:1px 6px; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+.src::before{ content:""; width:5px; height:5px; border-radius:50%; background:var(--ocean); }
+a.src{ text-decoration:none; }                      /* chip is a link → no underline */
+.src__ref{ font-weight:700; margin-left:5px; color:var(--ocean); }  /* citation marker [N] / (year) */
+.src.is-iucn::before{ background:var(--kelp); } .src.is-gbif::before{ background:var(--ocean); }
+.src.is-easin::before{ background:var(--lav); } .src.is-cabi::before{ background:var(--gold); }
+.src.is-wrims::before{ background:var(--cyan-600); } .src.is-aquanis::before{ background:var(--ocean-700); }
+.src.is-paper::before,.src.is-research::before{ background:var(--coral); }
+/* source chips inside a table cell: wrap without breaking table-cell layout
+   (flex on the <td> itself collapses the row — keep it on an inner wrapper) */
+.src-cell{ display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.prov-detail{ font-family:var(--mono); font-size:8pt; color:var(--slate); }
+
+/* ============================================================
+   4 · STRUCTURED TABLE   (tabularx / xltabular equivalent)
+   table-layout:fixed + wrapping so wide values never push past
+   the margin; thead repeats on every page of a long table.
+   ============================================================ */
+.tbl{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:9.5pt; margin:8px 0 18px; }
+.tbl thead{ display:table-header-group; }            /* repeat header across pages */
+.tbl th{ text-align:left; font-family:var(--mono); font-size:8pt; letter-spacing:.08em; text-transform:uppercase; color:var(--slate); font-weight:500; padding:0 9px 6px; border-bottom:1px solid var(--line); }
+.tbl td{ padding:8px 9px; border-bottom:1px solid var(--line-soft); vertical-align:top; overflow-wrap:anywhere; }
+.tbl tr{ break-inside:avoid; }
+.tbl .k{ font-weight:600; color:var(--ink); }
+.tbl .mono{ font-family:var(--mono); font-size:8.5pt; color:var(--ink-2); }
+
+/* key/value variant for classification etc. */
+.kv{ width:100%; border-collapse:collapse; font-size:10pt; }
+.kv td{ padding:6px 9px; border-bottom:1px solid var(--line-soft); vertical-align:top; overflow-wrap:anywhere; }
+.kv td:first-child{ font-family:var(--mono); font-size:8.5pt; letter-spacing:.05em; text-transform:uppercase; color:var(--slate); width:36%; }
+.kv td:last-child{ font-weight:600; color:var(--ink); }
+
+/* ============================================================
+   5 · RESEARCH EVIDENCE   (extracted_data, is_research_data)
+   Verbatim quote + confidence/verdict badges. Long quotes simply
+   flow and may break across pages (no avoid) — that's fine.
+   ============================================================ */
+.evidence{ border:1px solid var(--line); border-radius:var(--r-md); background:var(--paper); padding:13px 16px; margin:0 0 13px; }
+.evidence__q{ font-family:var(--serif); font-size:10.5pt; line-height:1.55; color:#22303a; margin:0 0 9px; }
+.evidence__q::before{ content:"\201C"; color:var(--slate-2); }
+.evidence__q::after{ content:"\201D"; color:var(--slate-2); }
+.evidence__m{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.badge{ font-family:var(--mono); font-size:8pt; font-weight:600; letter-spacing:.03em; padding:2px 8px; border-radius:5px; display:inline-flex; gap:5px; align-items:center; }
+.badge--verified{ background:var(--kelp-soft); color:#1f6c5f; }
+.badge--partial{ background:var(--gold-soft); color:#8a6a1f; }
+.badge--high{ background:var(--cyan-wash); color:var(--ocean-700); }
+.badge--medium{ background:var(--paper-2); color:var(--slate); }
+.badge--ai{ background:var(--cyan-wash); color:var(--ocean-700); }   /* AI-assisted narrative marker */
+.evidence__cite{ font-family:var(--mono); font-size:8pt; color:var(--slate); }
+a.evidence__cite{ text-decoration:none; }
+
+/* ============================================================
+   6 · CONFLICT (minority surfaced explicitly)  — optional callout
+   ============================================================ */
+.conflict{ border:1px solid #eecbc7; border-radius:var(--r-md); overflow:hidden; margin:0 0 10px; break-inside:avoid; }
+.conflict__h{ display:flex; align-items:center; gap:8px; padding:8px 14px; background:var(--coral-soft); color:#9c3127; font-size:9.5pt; font-weight:700; }
+.conflict__row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 14px; border-top:1px dashed var(--line); }
+.conflict__row:first-child{ border-top:0; }
+.conflict__v{ font-family:var(--serif); font-style:italic; font-size:11pt; }
+
+/* ============================================================
+   7 · NARRATIVE  (Layer 4 LLM prose) + omitted-data note
+   ============================================================ */
+.narrative{ margin:0 0 15px; }
+.ai-note{ font-family:var(--mono); font-size:7.5pt; color:var(--ocean-700); letter-spacing:.03em; text-transform:uppercase; margin:0 0 6px; }
+.ai-method-note{ font-size:8.5pt; color:var(--slate); border-left:3px solid var(--cyan-wash); padding:8px 12px; margin:14px 0 18px; line-height:1.5; }
+.appendix-page{ break-before:page; }
+.tools-provenance{ font-size:9pt; line-height:1.6; color:var(--ink-2); margin-top:14px; column-span:all; clear:both; }
+.omitted{ font-family:var(--mono); font-size:8.5pt; color:var(--slate); background:var(--paper-2); border-radius:6px; padding:8px 11px; margin:10px 0; }
+.omitted::before{ content:""; }
+
+/* ============================================================
+   8 · CHIP / TAG CLOUDS  (vernaculars, codes, habitats)
+   CSS columns / flex-wrap so any length reflows and paginates.
+   ============================================================ */
+.cloud{ display:flex; flex-wrap:wrap; gap:5px; }
+.chip{ font-size:9pt; background:var(--paper); border:1px solid var(--line); border-radius:5px; padding:2px 7px; color:var(--ink-2); }
+.chip b{ color:var(--slate-2); font-weight:500; font-family:var(--mono); font-size:7.5pt; margin-left:4px; text-transform:uppercase; }
+.chip.code{ font-family:var(--mono); font-weight:600; color:var(--ocean-700); background:var(--cyan-wash); border-color:var(--cyan-soft); }
+.chip--sourced{ display:inline-flex; align-items:center; gap:5px; }   /* synonym name + its per-database source chips */
+.cols-2{ column-count:2; column-gap:22px; }
+.cols-2 > *{ break-inside:avoid; }
+
+/* tag */
+.tag{ display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:8.5pt; font-weight:600; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+.tag::before{ content:""; width:6px; height:6px; border-radius:50%; }
+.tag--bad{ background:var(--coral-soft); color:#9c3127; } .tag--bad::before{ background:var(--coral); }
+.tag--warn{ background:var(--gold-soft); color:#8a6a1f; } .tag--warn::before{ background:var(--gold); }
+.tag--ok{ background:var(--kelp-soft); color:#1f6c5f; } .tag--ok::before{ background:var(--kelp); }
+.tag--mute{ background:var(--paper-2); color:var(--slate); } .tag--mute::before{ background:var(--slate-2); }
+
+/* tone utilities — used by cover verdict tiles ({{ v.tone_class }}) */
+.tone-bad{ color:var(--coral) !important; }
+.tone-warn{ color:#b07d1e !important; }
+.tone-ok{ color:var(--kelp) !important; }
+.tone-mute{ color:var(--slate-2) !important; }
+.tone-ink{ color:var(--ink) !important; }
+
+/* ============================================================
+   COVER
+   ============================================================ */
+.cover{ display:flex; flex-direction:column; height:297mm; }
+.cover__mast{ display:flex; align-items:center; justify-content:space-between; padding:15mm 17mm 0; }
+.cover__mast img{ height:30px; }
+.cover__tag{ text-align:right; font-family:var(--mono); }
+.cover__tag .a{ font-size:8.5pt; letter-spacing:.18em; text-transform:uppercase; color:var(--ocean); font-weight:600; white-space:nowrap; }
+.cover__tag .b{ font-size:7.5pt; letter-spacing:.08em; color:var(--slate-2); margin-top:3px; }
+.cover__hero{ position:relative; margin:11mm 17mm 0; height:86mm; border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden; background:repeating-linear-gradient(45deg,#fff,#fff 9px,var(--cyan-wash) 9px,var(--cyan-wash) 18px); }
+.cover__hero::after{ content:"SPECIMEN PHOTO"; position:absolute; inset:0; display:grid; place-items:center; font-family:var(--mono); font-size:9pt; letter-spacing:.12em; color:var(--slate-2); }
+.cover__hero img{ position:relative; z-index:1; width:100%; height:100%; object-fit:cover; display:block; }
+.cover__herocap{ position:absolute; inset:auto 0 0 0; z-index:2; display:flex; justify-content:space-between; padding:8px 13px; background:linear-gradient(0deg,rgba(11,58,96,.82),transparent); font-family:var(--mono); font-size:7.5pt; color:rgba(255,255,255,.92); }
+.cover__id{ padding:9mm 17mm 0; }
+.cover__eyebrow{ font-family:var(--mono); font-size:9.5pt; letter-spacing:.2em; text-transform:uppercase; color:var(--coral); font-weight:600; }
+.cover__name{ font-family:var(--serif); font-style:italic; font-weight:500; font-size:42pt; line-height:1; color:var(--ocean-900); margin:8px 0 7px; letter-spacing:-.02em; }
+.cover__auth{ font-size:11pt; color:var(--ink-2); }
+.cover__verdict{ margin:8mm 17mm 0; }
+.cover__foot{ margin-top:auto; display:flex; align-items:flex-end; justify-content:space-between; padding:0 17mm 6mm; }
+.cover__disclaimer{ font-family:var(--mono); font-size:8pt; color:var(--ink-2); line-height:1.6; margin:0; padding:6px 17mm 10mm; border-top:1.5px solid var(--line); display:flex; align-items:flex-start; gap:2px; }
+.cover__meta{ font-family:var(--mono); font-size:7.5pt; line-height:1.7; color:var(--slate); }
+.cover__meta b{ color:var(--ink-2); }
+
+/* ============================================================
+   ROBUSTNESS — the rules that keep arbitrary data from breaking
+   the layout. (Summarised in the Render Kit.)
+   ============================================================ */
+img{ max-width:100%; }                              /* images never exceed column */
+table{ max-width:100%; }
+pre,code{ overflow-wrap:anywhere; white-space:pre-wrap; }
+a{ color:var(--ocean-700); overflow-wrap:anywhere; }
+.ref-link{ margin:2px 0 0 16px; font-size:8pt; color:var(--slate); }  /* per-synonym links under a bibliography entry */
+.section{ break-inside:auto; margin-top:34px; break-before:page; }  /* each topic starts on a new page */
+.section:first-of-type{ margin-top:8px; }
+.cols-2 + .section, .tiles + .section{ margin-top:30px; }
+.keep{ break-inside:avoid; }                        /* opt-in atomic block */
+
+/* ============================================================
+   GIAS EXTENSIONS  (not in the original redesign kit)
+   Four blocks the kit left out but the tool must keep:
+   silhouette plate, distribution map, management-priority matrix,
+   report metadata. All obey the same flow/no-overflow rules above.
+   ============================================================ */
+
+/* --- Silhouette plate (PhyloPic) — the kit's tokens.css .plate,
+       wired into the cover beside the species name. Falls back to a
+       field-guide placeholder when no silhouette resolves. --- */
+.cover__idrow{ display:flex; align-items:center; justify-content:space-between; gap:8mm; padding:9mm 17mm 0; }
+.cover__idrow .cover__id{ padding:0; flex:1 1 auto; }
+.plate{ position:relative; flex:0 0 38mm; width:38mm; height:38mm; background:
+    radial-gradient(circle at 1px 1px, rgba(16,42,56,.08) 1px, transparent 0) 0 0 / 9px 9px,
+    linear-gradient(180deg,#FBFDFD,#F1F7F8); border:1px solid var(--line); border-radius:var(--r-md); overflow:hidden; }
+.plate__img{ position:relative; z-index:1; width:100%; height:100%; object-fit:contain; padding:6mm 4mm 8mm; display:block; }
+.plate--empty::after{ content:"SILHOUETTE"; position:absolute; inset:0; display:grid; place-items:center; font-family:var(--mono); font-size:8pt; letter-spacing:.12em; color:var(--slate-2); }
+.plate__corner{ position:absolute; width:10px; height:10px; border-color:var(--slate-2); border-style:solid; border-width:0; z-index:2; }
+.plate__corner.tl{ top:8px; left:8px; border-top-width:1.5px; border-left-width:1.5px; }
+.plate__corner.tr{ top:8px; right:8px; border-top-width:1.5px; border-right-width:1.5px; }
+.plate__corner.bl{ bottom:8px; left:8px; border-bottom-width:1.5px; border-left-width:1.5px; }
+.plate__corner.br{ bottom:8px; right:8px; border-bottom-width:1.5px; border-right-width:1.5px; }
+.plate__cap{ position:absolute; bottom:7px; left:0; right:0; z-index:2; text-align:center; font-family:var(--mono); font-size:7pt; letter-spacing:.1em; text-transform:uppercase; color:var(--slate-2); }
+
+/* --- Distribution map figure — embeds the kaleido choropleth PNG;
+       striped placeholder (mirrors .cover__hero) when none. --- */
+.mapfig{ position:relative; margin:8px 0 18px; border:1px solid var(--line); border-radius:var(--r-md); overflow:hidden; break-inside:avoid; background:repeating-linear-gradient(45deg,#fff,#fff 9px,var(--cyan-wash) 9px,var(--cyan-wash) 18px); }
+.mapfig img{ display:block; width:100%; height:auto; }
+.mapfig-cap{ padding:4px 8px; font-family:var(--mono); font-size:8pt; letter-spacing:.1em; text-transform:uppercase; color:var(--slate-2); border-top:1px solid var(--line); }
+.mapfig--empty{ height:70mm; }
+.mapfig--empty::after{ content:"DISTRIBUTION MAP"; position:absolute; inset:0; display:grid; place-items:center; font-family:var(--mono); font-size:9pt; letter-spacing:.12em; color:var(--slate-2); }
+
+/* --- Table of contents — leader dots + page numbers resolved by
+       WeasyPrint's target-counter (GCPM). One row per topic/section. --- */
+.toc{ margin:0 0 24px; }
+.toc__h{ font-family:var(--serif); font-weight:500; font-size:21pt; color:var(--ocean-900); margin:0 0 14px; letter-spacing:-.01em; }
+.toc__row{ display:block; text-decoration:none; color:var(--ink); font-size:11pt; line-height:1.4; padding:8px 0; border-bottom:1px solid var(--line-soft); }
+.toc__row::after{ content:leader('.') target-counter(attr(href), page); font-family:var(--mono); font-size:9pt; color:var(--slate); }
+.toc__no{ font-family:var(--mono); font-size:9pt; letter-spacing:.12em; color:var(--cyan-600); margin-right:14px; }

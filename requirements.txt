@@ -1,0 +1,31 @@
+# Pin to 1.50.x — shell.css uses data-testid CSS hooks that track Streamlit
+# internals. Drift between releases. Bump manually after testing CSS selectors.
+streamlit>=1.50.0,<1.51.0
+streamlit-elements==0.1.*
+# Native st.pdf viewer (PDF.js). Pin to the 1.0.x line: 2.0.x needs
+# streamlit>=1.51 (imports streamlit.components.v2), which our <1.51 pin lacks.
+streamlit-pdf>=1.0.8,<2.0
+haystack-ai==2.18.0
+mistral-haystack==0.3.1
+pydantic>=2.0.0
+pandas>=2.3.0
+plotly==6.5.2
+requests>=2.32.4
+toml>=0.10.2
+pypdf>=5.1.0
+pymupdf>=1.24.0
+numpy>=1.26.0
+langdetect>=1.0.9
+deep-translator>=1.11.4
+# kaleido 1.x drives external Chrome (via choreographer) — no bundled Chromium.
+# Cloud needs packages.txt: chromium. See packages.txt comment.
+kaleido==1.2.0
+choreographer==1.2.1
+langcodes>=3.5.0
+language_data>=1.4.0
+rapidfuzz>=3.0.0
+jinja2>=3.1.0
+markdown>=3.5
+weasyprint>=66.0
+# WeasyPrint needs Pango/Cairo system libs (already present on Linux desktop):
+#   apt-get install libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libffi-dev

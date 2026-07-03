@@ -1,0 +1,12 @@
+.claude
+*__pycache__
+.streamlit/secrets.toml
+test_files/
+cache
+.gitignore
+test_output_paper_summary
+categorized_data
+test_reports
+test_report_pipeline.py
+*OVERVIEW.md
+tests

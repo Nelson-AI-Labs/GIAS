@@ -1,0 +1,225 @@
+{
+  "valid_categories": [
+    "taxonomic_identity",
+    "biological_traits",
+    "distribution_and_status",
+    "habitat_ecology",
+    "species_interactions",
+    "impacts",
+    "introduction_pathways",
+    "management_biosecurity",
+    "detection_monitoring",
+    "data_metadata",
+    "needs_review"
+  ],
+  "databases": {
+    "GBIF": {
+      "direct_mappings": {
+        "data.species_name": "taxonomic_identity",
+        "data.taxonomy": "taxonomic_identity",
+        "data.synonyms": "taxonomic_identity",
+        "data.vernacular_names": "taxonomic_identity",
+        "data.children_taxa": "taxonomic_identity",
+        "data.habitat": "habitat_ecology",
+        "data.distribution_records": "distribution_and_status",
+        "data.occurrence_sample": "distribution_and_status",
+        "data.references": "data_metadata",
+        "data.media": "data_metadata"
+      },
+      "typed_arrays": {
+        "data.descriptions": {
+          "discriminator": "type",
+          "mappings": {
+            "native range": "distribution_and_status",
+            "eunis habitat": "habitat_ecology",
+            "ecofunctional group": "habitat_ecology",
+            "pathway": "introduction_pathways",
+            "introduction pathway": "introduction_pathways",
+            "invasion stage": "management_biosecurity",
+            "degree of establishment": "management_biosecurity",
+            "entry into force": "management_biosecurity",
+            "behaviour": "biological_traits",
+            "behavior": "biological_traits",
+            "activity": "biological_traits",
+            "foraging": "biological_traits",
+            "foraging behavior": "biological_traits",
+            "territorial behavior": "biological_traits",
+            "mating behavior": "biological_traits",
+            "reproductive behavior": "biological_traits",
+            "parental care": "biological_traits",
+            "social behavior": "biological_traits",
+            "migration": "biological_traits",
+            "burrowing": "biological_traits",
+            "reproduction": "biological_traits",
+            "lifecycle": "biological_traits",
+            "conservation": "distribution_and_status",
+            "materials_examined": "detection_monitoring",
+            "Introduced species impact": "impacts",
+            "Introduced species vector dispersal": "introduction_pathways",
+            "Introduced species abundance": "management_biosecurity"
+          }
+        }
+      },
+      "special_handling": {
+        "data.descriptions": {
+          "condition": "type == 'Introduced species remark' OR type == 'Notes'",
+          "action": "map_to_impacts"
+        },
+        "data.occurrence_sample": {
+          "action": "Do not map individual records. Aggregate Lat/Lon data for 'distribution_and_status' heatmaps.",
+          "sub_field_mapping": {
+            "basisOfRecord": "detection_monitoring"
+          }
+        }
+      },
+      "missing_categories": [
+        "species_interactions"
+      ]
+    },
+    "IUCN": {
+      "direct_mappings": {
+        "data.species_name": "taxonomic_identity",
+        "data.taxonomy": "taxonomic_identity",
+        "data.synonyms": "taxonomic_identity",
+        "data.conservation_status": "distribution_and_status",
+        "data.habitats_list": "habitat_ecology",
+        "data.geographic_range": "distribution_and_status",
+        "data.population": "distribution_and_status",
+        "data.systems": "habitat_ecology",
+        "data.threats": "distribution_and_status",
+        "data.stresses": "distribution_and_status",
+        "data.conservation_measures": "management_biosecurity",
+        "data.use_trade": "impacts",
+        "data.citation": "data_metadata",
+        "data.habitat_ecology_text": "habitat_ecology",
+        "data.narrative": "distribution_and_status",
+        "data.rationale": "distribution_and_status"
+      },
+      "typed_arrays": {},
+      "missing_categories": [
+        "biological_traits",
+        "species_interactions",
+        "introduction_pathways",
+        "impacts",
+        "detection_monitoring"
+      ]
+    },
+    "WRiMS": {
+      "direct_mappings": {
+        "data.species_name": "taxonomic_identity",
+        "data.authority": "taxonomic_identity",
+        "data.rank": "taxonomic_identity",
+        "data.synonyms": "taxonomic_identity",
+        "data.vernacular_names": "taxonomic_identity",
+        "data.common_names": "taxonomic_identity",
+        "data.taxonomy": "taxonomic_identity",
+        "data.habitat": "habitat_ecology",
+        "data.distribution_records": "distribution_and_status",
+        "data.sources": "data_metadata",
+        "data.references": "data_metadata"
+      },
+      "typed_arrays": {
+        "data.attributes": {
+          "discriminator": "measurement_type",
+          "mappings": {
+            "Body size": "biological_traits",
+            "Body size (qualitative)": "biological_traits",
+            "Macroalgal blooming": "impacts",
+            "AMBI ecological group": "habitat_ecology",
+            "Functional group": "habitat_ecology",
+            "Species importance to society": ["impacts", "management_biosecurity"],
+            "Etymology classification": "taxonomic_identity",
+            "Species exhibits underwater soniferous behaviour": ["biological_traits", "detection_monitoring"],
+            "Gametophyte arrangement": "biological_traits",
+            "Reproduction": "biological_traits",
+            "Gamete type": "biological_traits",
+            "Spawning": "biological_traits",
+            "Life span": "biological_traits",
+            "Seasonality": "biological_traits"
+          }
+        }
+      },
+      "missing_categories": [
+        "species_interactions",
+        "management_biosecurity"
+      ]
+    },
+    "EASIN": {
+      "direct_mappings": {
+        "data.species_name": "taxonomic_identity",
+        "data.authorship": "taxonomic_identity",
+        "data.easin_id": "data_metadata",
+        "data.easin_url": "data_metadata",
+        "data.taxonomy": "taxonomic_identity",
+        "data.common_names": "taxonomic_identity",
+        "data.synonyms": "taxonomic_identity",
+        "data.status": "data_metadata",
+        "data.native_range": "distribution_and_status",
+        "data.is_part_native": "distribution_and_status",
+        "data.first_introductions_in_eu": "distribution_and_status",
+        "data.present_in_countries": "distribution_and_status",
+        "data.is_eu_concern": "management_biosecurity",
+        "data.is_outermost_concern": "management_biosecurity",
+        "data.concerned_outermost_regions": "management_biosecurity",
+        "data.is_ms_concern": "management_biosecurity",
+        "data.concerned_member_states": "management_biosecurity",
+        "data.is_horizon_scanning": "management_biosecurity",
+        "data.cbd_pathways": "introduction_pathways",
+        "data.has_impact": "impacts",
+        "data.impact_sources": "impacts",
+        "data.impact_on_sectors": "impacts",
+        "data.last_revision_date": "data_metadata",
+        "data.raw_easin_data": "data_metadata"
+      },
+      "typed_arrays": {},
+      "missing_categories": [
+        "biological_traits",
+        "habitat_ecology",
+        "species_interactions",
+        "detection_monitoring"
+      ]
+    },
+    "AquaNIS": {
+      "direct_mappings": {
+        "data.species_name": "taxonomic_identity",
+        "data.authority": "taxonomic_identity",
+        "data.native_range": "distribution_and_status",
+        "data.invasion_status": "management_biosecurity",
+        "data.risk_level": "management_biosecurity",
+        "data.is_established": "distribution_and_status",
+        "data.raw_aquanis_data": "data_metadata",
+        "data.habitat_types": "habitat_ecology",
+        "data.introduction_ports": "introduction_pathways",
+        "data.introduction_ports_vicinity": "introduction_pathways",
+        "data.source_regions": "distribution_and_status",
+        "data.pathways_aquanis": "introduction_pathways",
+        "data.pathways_easin": "introduction_pathways"
+      },
+      "typed_arrays": {},
+      "missing_categories": [
+        "biological_traits",
+        "species_interactions",
+        "impacts",
+        "detection_monitoring"
+      ]
+    },
+    "CABI": {
+      "direct_mappings": {
+        "data.species_name": "taxonomic_identity",
+        "data.datasheet_urls": "data_metadata",
+        "data.cabi_url": "data_metadata"
+      },
+      "typed_arrays": {},
+      "missing_categories": [
+        "biological_traits",
+        "habitat_ecology",
+        "species_interactions",
+        "distribution_and_status",
+        "introduction_pathways",
+        "management_biosecurity",
+        "impacts",
+        "detection_monitoring"
+      ]
+    }
+  }
+}

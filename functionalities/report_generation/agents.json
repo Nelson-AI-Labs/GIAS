@@ -1,0 +1,15 @@
+{
+  "_comment": "AI agent configuration for report generation. Edit model/temperature here — no code changes needed.",
+  "agents": {
+    "narrative_generator": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.2,
+      "description": "Writes narrative prose sections for species reports"
+    },
+    "regulatory_classifier": {
+      "model": "mistral-small-latest",
+      "temperature": 0.0,
+      "description": "Classifies cleaned data fields as regulatory-status vs narrative-content"
+    }
+  }
+}

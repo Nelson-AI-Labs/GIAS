@@ -1,0 +1,26 @@
+G.I.A.S — GuardIAS Intelligence Analyst System
+Copyright 2026 The GIAS Authors
+
+This product is licensed under the Apache License, Version 2.0 (see the LICENSE
+file). The following notices are provided for attribution.
+
+Copyright holders:
+  - Nelson AI Labs
+  - Samuel Vander Velpen <sam_vv_work@proton.me>
+
+Developed as part of the EU Horizon GuardIAS project.
+
+--------------------------------------------------------------------------------
+Third-party software
+--------------------------------------------------------------------------------
+GIAS is built on open-source components, each distributed under its own license.
+Key dependencies include Streamlit, Haystack (deepset), Pydantic, pandas, Plotly,
+WeasyPrint, PyMuPDF, and pypdf. See requirements.txt for the full list and the
+respective projects for their license terms.
+
+--------------------------------------------------------------------------------
+Data sources
+--------------------------------------------------------------------------------
+GIAS aggregates data from external biodiversity databases at query time. The
+data returned belongs to those providers and is subject to their terms of use:
+GBIF, WRiMS, IUCN Red List, EASIN, AquaNIS, and CABI.

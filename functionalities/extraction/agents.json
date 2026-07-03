@@ -1,0 +1,41 @@
+{
+  "_comment": "AI agent configuration for the extraction pipeline. Edit model/temperature here — no code changes needed.",
+  "agents": {
+    "data_extraction": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.1,
+      "description": "Extracts structured facts from PDF research text",
+      "coverage_check": false
+    },
+    "verification": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.1,
+      "description": "Verifies extracted facts against source text"
+    },
+    "document_topic_analyzer": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.1,
+      "description": "Classifies which research topics a document covers"
+    },
+    "custom_prompt_generator": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.3,
+      "description": "Generates extraction prompts for custom research topics"
+    },
+    "custom_topic_interpreter": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.1,
+      "description": "Interprets and expands custom research topic descriptions"
+    },
+    "custom_search_term_generator": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.3,
+      "description": "Generates search terms for custom research topics"
+    },
+    "citation_extraction": {
+      "model": "mistral-small-latest",
+      "temperature": 0.0,
+      "description": "Extracts structured citation metadata (authors, year, journal, DOI) from PDF markdown text"
+    }
+  }
+}

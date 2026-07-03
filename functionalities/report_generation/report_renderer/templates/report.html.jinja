@@ -1,0 +1,353 @@
+{# SPDX-License-Identifier: Apache-2.0 #}
+{# Copyright 2026 The GIAS Authors #}
+
+{#- ===========================================================================
+    GIAS · Species Intelligence Report — WeasyPrint template skeleton
+    Engine:  Jinja2 → HTML → WeasyPrint → PDF   (drop into pipeline.py)
+
+    HOW THE PIPELINE FEEDS THIS TEMPLATE
+    ------------------------------------------------------------------------
+    Layer 1  CategoryFilterComponent   → report.sections (only chosen topics)
+    Layer 2  DataCleanerComponent      → section.facts[* ].{fact, sources,
+                                          agreement: consensus|minority|single}
+                                          section.tables[*]  (structured dumps)
+    Layer 3  RegulatoryStatusExtractor → report.regulatory_status[*]
+                                          (popped out of the narrative entirely)
+    Layer 4  NarrativeGeneratorComponent → section.narrative  (formatter-only
+                                          prose; may be empty)  + section.notes
+                                          (e.g. "[large dataset omitted …]")
+    Research extracts (is_research_data) → section.evidence[*].{quote, source,
+                                          page, confidence, verdict}
+
+    The template is a DUMB renderer: every judgement already happened upstream.
+    It only loops + styles. Because it loops, a section with 0 or 200 facts
+    both render correctly — see report.css for the no-overflow rules.
+=========================================================================== -#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>GIAS Report · {{ report.species.name }}</title>
+  <link rel="stylesheet" href="report.css" />
+</head>
+<body>
+
+  {#- source chip: links to its Sources-page entry (#ref-N) with the same
+      citation marker the narrative uses ("[3]" numbered / "(2026)" APA /
+      "(Author 2006)" Harvard / "<sup>3</sup>" Vancouver superscript).
+      When report.include.provenance is False, chips are suppressed entirely.
+      Falls back to a plain chip when the source has no reference entry. -#}
+  {% macro src_chip(s) -%}
+  {%- if report.include.provenance -%}
+    {%- set c = report.source_citations.get(s) -%}
+    {%- if c -%}<a class="src is-{{ s|lower }}" href="#{{ c.anchor }}">{{ s }}{% if c.marker %}<b class="src__ref">{{ c.marker|safe }}</b>{% endif %}</a>
+    {%- else -%}<span class="src is-{{ s|lower }}">{{ s }}</span>{%- endif -%}
+  {%- endif -%}
+  {%- endmacro %}
+
+  {#- multiple sources pre-joined as "A · B" → one chip each (DRY over src_chip) -#}
+  {% macro src_chips(s) -%}
+  {%- for part in s.split(' · ') if part.strip() -%}{{ src_chip(part.strip()) }}{%- endfor -%}
+  {%- endmacro %}
+
+  {#- running-header strings (printed on every page by @page) -#}
+  <div class="run-sci u-hidden">{{ report.species.name }}</div>
+  <div class="run-id u-hidden">{{ report.universal_id }}</div>
+
+  {# ====================== COVER ====================== #}
+  <section class="page cover-page">
+    <div class="cover">
+      <div class="cover__mast">
+        <img src="{{ assets }}/guardias-logo.png" alt="GuardIAS" />
+        <div class="cover__tag">
+          <div class="a">Invasive Species Intelligence Report</div>
+          <div class="b">Aquatic IAS · management dossier</div>
+        </div>
+      </div>
+
+      {% if report.cover.photo_url %}
+      <figure class="cover__hero">
+        <img src="{{ report.cover.photo_url }}" alt="{{ report.species.name }}" />
+        <figcaption class="cover__herocap">
+          <span>Specimen</span><span>{{ report.cover.photo_credit }}</span>
+        </figcaption>
+      </figure>
+      {% endif %}
+
+      <div class="cover__idrow">
+        <div class="cover__id">
+          {% if report.species.common_name %}<div class="cover__eyebrow">{{ report.species.common_name }}</div>{% endif %}
+          <h1 class="cover__name">{{ report.species.name }}</h1>
+          <div class="cover__auth">{{ report.species.authority }}{% if report.species.family %} · family {{ report.species.family }}{% endif %}</div>
+        </div>
+        {#- field-guide silhouette (PhyloPic); suppressed when include.phylopic is False -#}
+        {% if report.include.phylopic %}
+        <figure class="plate{% if not report.cover.silhouette_url %} plate--empty{% endif %}">
+          {% if report.cover.silhouette_url %}<img class="plate__img" src="{{ report.cover.silhouette_url }}" alt="{{ report.species.name }} silhouette" />{% endif %}
+          <span class="plate__corner tl"></span><span class="plate__corner tr"></span>
+          <span class="plate__corner bl"></span><span class="plate__corner br"></span>
+          <figcaption class="plate__cap">{% if report.cover.silhouette_url %}PhyloPic · public domain{% else %}field guide{% endif %}</figcaption>
+        </figure>
+        {% endif %}
+      </div>
+
+      {#- headline verdict tiles, derived from regulatory_status -#}
+      {% if report.cover.verdict %}
+      <div class="cover__verdict">
+        <div class="tiles">
+          {% for v in report.cover.verdict %}
+          <div class="tile"><div class="tile__l">{{ v.label }}</div>
+            <div style="font-size:11pt;font-weight:700;margin-top:4px" class="{{ v.tone_class }}">{{ v.value }}</div></div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="cover__foot">
+        <div class="cover__meta">
+          Universal ID  <b>{{ report.universal_id }}</b><br>
+          Generated  <b>{{ report.generated }}</b> · Generated with the GIAS tool<br>
+          Topics  <b>{{ report.sections|length }}</b> · sources  <b>{{ report.source_count }}</b>
+        </div>
+        <div class="cover__meta" style="text-align:right">GuardIAS · Funded<br>by the European Union</div>
+      </div>
+      <div class="cover__disclaimer">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><b>Disclaimer</b> — This report aggregates data from scientific literature and species databases for informational purposes only. The user remains responsible for independently verifying all data before use in management decisions or regulatory contexts.
+      </div>
+    </div>
+  </section>
+
+  {# ============ BODY (one flowing .page; @page paginates) ============ #}
+  <section class="page">
+
+    {# ---------- TABLE OF CONTENTS (page numbers via target-counter) ---------- #}
+    <nav class="toc keep">
+      <div class="toc__h">Contents</div>
+      {% for sec in report.sections %}
+      <a class="toc__row" href="#sec-{{ loop.index }}"><span class="toc__no">{{ '%02d'|format(loop.index) }}</span>{{ sec.title }}</a>
+      {% endfor %}
+      {% if report.management_priority and report.management_priority.rows %}
+      <a class="toc__row" href="#sec-mgmt"><span class="toc__no">M</span>Management priority</a>{% endif %}
+      {% if report.appendix.records %}
+      <a class="toc__row" href="#sec-appendix"><span class="toc__no">A</span>Appendix · occurrence records</a>{% endif %}
+      {% if report.include.provenance %}
+      <a class="toc__row" href="#sec-sources"><span class="toc__no">C</span>Sources &amp; provenance</a>{% endif %}
+    </nav>
+
+    {# ---------- AI METHODOLOGY NOTE ---------- #}
+    {% if report.sections | selectattr('is_ai_generated') | list %}
+    <div class="ai-method-note keep">
+      <b>About AI-assisted summaries</b> — Chapters marked <em>AI-assisted summary</em> contain a short introductory paragraph written by a language model. The model was given only the extracted text from the listed sources; it did not draw on its own training knowledge. All factual content is traceable to those sources via the citations and research extracts in each chapter.
+    </div>
+    {% endif %}
+
+    {# ---------- REGULATORY STATUS (Layer 3) ---------- #}
+    {% if report.regulatory_status %}
+    <div class="reg-status keep">
+      <div class="reg-status__h"><span class="pin"></span> Regulatory status</div>
+      {% for s in report.regulatory_status %}
+      <div class="reg-row">
+        <div class="k">{{ s.label }}{% if s.note %}<small>{{ s.note }}</small>{% endif %}</div>
+        <div class="v">{{ s.value }}
+          {% if s.source %}{{ src_chip(s.source) }}{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ---------- KPI tiles (optional, derived) ---------- #}
+    {% if report.kpis %}
+    <div class="tiles" style="margin-bottom:16px">
+      {% for k in report.kpis %}
+      <div class="tile"><div class="tile__n">{{ k.value }}</div><div class="tile__l">{{ k.label }}</div></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ---------- SECTIONS (Layer 1 selection) ---------- #}
+    {% for sec in report.sections %}
+    <div class="section" id="sec-{{ loop.index }}" data-screen-label="{{ '%02d'|format(loop.index) }} · {{ sec.title }}">
+      <div class="sec"><div class="sec-row">
+        <span class="sec-no">{{ '%02d'|format(loop.index) }}</span>
+        <div>
+          <h2>{{ sec.title }}</h2>
+          {% if sec.subtitle %}<p class="sec-sub">{{ sec.subtitle }}</p>{% endif %}
+        </div>
+      </div><div class="sec-rule"></div></div>
+
+      {# Layer 4 narrative prose #}
+      {% if sec.narrative %}
+      {% if sec.is_ai_generated %}<p class="ai-note">AI-assisted summary — see sources below.</p>{% endif %}
+      <div class="narrative doc">{{ sec.narrative|safe }}</div>{% endif %}
+
+      {# Layer 2 deduped facts, each with agreement + sources #}
+      {% if sec.facts %}
+      <div class="facts">
+        {% for f in sec.facts %}
+        <div class="fact">
+          <div>
+            <div class="fact__b">{{ f.fact }}</div>
+            <div class="fact__meta">
+              {% for s in f.sources %}{{ src_chip(s) }}{% endfor %}
+              {% if f.translated_from %}<span class="agree translated">translated from {{ f.translated_from }}</span>{% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {# Optional: consensus classification (key/value) + retained conflict #}
+      {% if sec.classification %}
+      <h3 class="blk">{{ sec.classification.caption or 'Consensus classification' }}</h3>
+      <div class="cols-2">
+        <table class="kv">
+          {% for r in sec.classification.rows %}<tr><td>{{ r[0] }}</td><td class="sci">{{ r[1] }}</td></tr>{% endfor %}
+        </table>
+        {% if report.include.conflicts and sec.conflict %}
+        <div class="conflict" style="margin:0">
+          <div class="conflict__h"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>{{ sec.conflict.title }}</div>
+          {% for c in sec.conflict.rows %}
+          <div class="conflict__row"><span class="conflict__v">{{ c.value }}</span>{{ src_chips(c.source) }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {# Optional: chip clouds (vernacular names, codes, external IDs) #}
+      {% for cloud in sec.clouds %}
+      <h3 class="blk">{{ cloud.label }}{% if cloud.note %} <small style="font-family:var(--mono);font-weight:400;color:var(--slate-2);text-transform:none;letter-spacing:0">— {{ cloud.note }}</small>{% endif %}</h3>
+      <div class="cloud">
+        {% for it in cloud['items'] %}{% if it.sources %}<span class="chip chip--sourced">{{ it.text }}{% for s in it.sources %}{{ src_chip(s) }}{% endfor %}</span>{% else %}<span class="chip{% if cloud.code %} code{% endif %}">{{ it.text }}{% if it.tag %} <b>{{ it.tag }}</b>{% endif %}</span>{% endif %}{% endfor %}
+      </div>
+      {% endfor %}
+
+      {# Layer 2 structured tables (header repeats across pages) #}
+      {% for t in sec.tables %}
+      {% if t.caption %}<h3 class="blk">{{ t.caption }}</h3>{% endif %}
+      <table class="tbl">
+        {% if t.columns %}<thead><tr>{% for c in t.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>{% endif %}
+        <tbody>
+          {% for row in t.rows %}<tr>{% for cell in row %}{% set is_src = t.source_col is defined and t.source_col is not none and loop.index0 == t.source_col %}<td>{% if is_src %}<div class="src-cell">{{ src_chips(cell) }}</div>{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+        </tbody>
+      </table>
+      {% endfor %}
+
+      {# Research evidence extracts #}
+      {% for e in sec.evidence %}
+      <div class="evidence">
+        <p class="evidence__q">{{ e.quote }}</p>
+        <div class="evidence__m">
+          {% set ec = report.source_citations.get(e.source) %}
+          {% if ec %}<a class="evidence__cite" href="#{{ ec.anchor }}">{{ e.source }}{% if ec.marker %} {{ ec.marker }}{% endif %}</a>
+          {% else %}<span class="evidence__cite">{{ e.source }}</span>{% endif %}{% if e.page %} <span class="evidence__cite">· {{ e.page }}</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+      {# narrative_generator dropped-data notes #}
+      {% for n in sec.notes %}<p class="omitted"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="15" x2="15" y2="15"/></svg>{{ n }}</p>{% endfor %}
+
+      {# Distribution maps + conflict/marine tables render under the Distribution
+         and Status chapter (context_builder flags it via sec.is_distribution). #}
+      {% if sec.is_distribution %}
+      {% if report.include.map %}
+      <figure class="mapfig{% if not report.distribution_map_world_url %} mapfig--empty{% endif %}">
+        {% if report.distribution_map_world_url %}<img src="{{ report.distribution_map_world_url }}" alt="Worldwide distribution map" />
+        <figcaption class="mapfig-cap">Worldwide</figcaption>{% endif %}
+      </figure>
+      <figure class="mapfig{% if not report.distribution_map_europe_url %} mapfig--empty{% endif %}">
+        {% if report.distribution_map_europe_url %}<img src="{{ report.distribution_map_europe_url }}" alt="Europe distribution map" />
+        <figcaption class="mapfig-cap">Europe</figcaption>{% endif %}
+      </figure>
+      {% endif %}
+      {#- conflicting distribution data: countries where sources disagree native↔introduced -#}
+      {% if report.include.conflicts and report.distribution_conflicts %}
+      <p class="sec-sub">Conflicting source data — sources disagree on native vs. introduced status; the map shows these in a distinct colour rather than picking a winner.</p>
+      <table class="tbl">
+        <thead><tr><th style="width:40%">Country</th><th>Per-source status</th></tr></thead>
+        <tbody>
+          {% for c in report.distribution_conflicts %}
+          <tr><td class="k">{{ c.country }}</td><td><div class="src-cell">{% for p in c.pairs %}{{ src_chip(p.source) }}<span class="prov-detail">{{ p.status }}</span>{% endfor %}</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      {#- marine / open-ocean localities with no sovereign country — listed, not dropped -#}
+      {% if report.distribution_unmapped %}
+      <p class="sec-sub">Marine / unmapped localities — records naming a sea or open ocean with no single sovereign country, so they can't be drawn on the country map.</p>
+      <table class="tbl">
+        <thead><tr><th style="width:55%">Locality</th><th>Status</th><th>Source</th></tr></thead>
+        <tbody>
+          {% for u in report.distribution_unmapped %}
+          <tr><td class="k">{{ u.locality }}</td><td>{{ u.status }}</td><td><div class="src-cell">{{ src_chips(u.source) }}</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    {# ---------- MANAGEMENT PRIORITY matrix (salvaged from report_formatter) ---------- #}
+    {% if report.management_priority and report.management_priority.rows %}
+    <div class="section" id="sec-mgmt" data-screen-label="Management priority">
+      <div class="sec"><div class="sec-row"><span class="sec-no">M</span>
+        <div><h2>Management priority</h2></div></div><div class="sec-rule"></div></div>
+      <table class="tbl">
+        <thead><tr>{% for c in report.management_priority.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in report.management_priority.rows %}<tr>{% for cell in row %}{% set is_src = report.management_priority.source_col is defined and loop.index0 == report.management_priority.source_col %}<td{% if loop.first %} class="k"{% endif %}>{% if is_src %}{% if cell and cell != '—' %}<div class="src-cell">{{ src_chips(cell) }}</div>{% else %}—{% endif %}{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {# ---------- APPENDIX: distribution records (xltabular-style) ---------- #}
+    {% if report.appendix.records %}
+    <div class="section" id="sec-appendix" data-screen-label="Appendix · records">
+      <div class="sec"><div class="sec-row"><span class="sec-no">A</span>
+        <div><h2>Appendix · occurrence records</h2>
+          <p class="sec-sub">Record-level provenance. Grouped by region.</p></div></div><div class="sec-rule"></div></div>
+      <table class="tbl">
+        <thead><tr><th style="width:40%">Locality</th><th>Status</th><th>Means</th><th>Source</th></tr></thead>
+        <tbody>
+          {% for r in report.appendix.records %}
+          <tr><td class="k">{{ r.locality }}</td><td>{{ r.status }}</td><td>{{ r.means }}</td><td><div class="src-cell">{% for s in r.sources %}{{ src_chip(s.key) }}{% if s.detail %}<span class="prov-detail">{{ s.detail }}</span>{% endif %}{% endfor %}{% if not r.sources %}—{% endif %}</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {# ---------- APPENDIX C · REFERENCES + TOOLS/IMAGERY ---------- #}
+    {% if report.include.provenance %}
+    <div class="section appendix-page" id="sec-sources" data-screen-label="Sources">
+      <div class="sec"><div class="sec-row"><span class="sec-no">C</span>
+        <div><h2>Sources &amp; provenance</h2></div></div><div class="sec-rule"></div></div>
+      {% if report.references %}
+      <div class="cols-2" style="font-size:9pt;line-height:1.5;color:var(--ink-2)">
+        {% for r in report.references %}
+        <div id="ref-{{ loop.index }}" style="margin-bottom:7px"><b style="color:var(--ocean)">[{{ loop.index }}]</b> {{ r.citation }}
+          {%- if r.variant_links %}
+          {%- for v in r.variant_links %}
+          <div class="ref-link"><span class="sci">{{ v.name }}</span> <a class="mono" href="{{ v.url }}">{{ v.url }}</a>{% if v.introduced_url %} · <a class="mono" href="{{ v.introduced_url }}">introduced register</a>{% endif %}</div>
+          {%- endfor %}
+          {%- elif r.link %} <a class="mono" href="{{ r.link }}">{{ r.link }}</a>{% endif %}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {#- Tools & imagery — outside the cols-2 block, always full-width -#}
+      <div class="tools-provenance">
+        <b>Tools &amp; imagery</b><br>
+        <span>Report generated with the <b>GIAS</b> (GuardIAS) invasive species intelligence tool.</span>
+        {% if report.cover.photo_credit %}<br><span>Species photograph: <a class="mono" href="https://en.wikipedia.org/wiki/{{ report.species.name | replace(' ', '_') }}">{{ report.cover.photo_credit }}</a>.</span>{% endif %}
+        {% if report.cover.silhouette_url %}<br><span>Species silhouette: {% if report.cover.silhouette_page_url %}<a class="mono" href="{{ report.cover.silhouette_page_url }}"><b>PhyloPic</b></a>{% else %}<b>PhyloPic</b>{% endif %} (public domain){% if report.cover.silhouette_credit %} · {{ report.cover.silhouette_credit }}{% endif %}.</span>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+  </section>
+</body>
+</html>

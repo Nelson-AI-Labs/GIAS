@@ -1,0 +1,447 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 The GIAS Authors */
+
+/* ============================================================
+   GIAS — shell.css  (injected once per page in app.py)
+   The ~5% the config.toml theme can't express: gradient rail,
+   logo plate, active-nav chip, provenance chips, metric strip,
+   topic-card polish, conflict box, activity-log accents.
+
+   Injected by ui.inject_css("assets/shell.css") in frontend/components.py.
+   ⚠  The injection wraps this entire file in a <style> block. The HTML
+   parser ends that block at the first closing style tag it finds — so this
+   file must never contain that token (even inside a CSS comment).
+
+   ⚠  data-testid selectors track Streamlit internals and can
+   drift between releases. Streamlit version is pinned in
+   requirements.txt. Prefer .st-key-<key> hooks where possible
+   (set key= on st.container) — those are the stable public API.
+   ============================================================ */
+
+/* ---- design tokens ---- */
+:root{
+  --ocean:#136BAE; --ocean-700:#0E5589; --ocean-900:#0B3A60;
+  --cyan:#46B6CB; --cyan-600:#2E9DB5; --cyan-soft:#CFEAF0; --cyan-wash:#EAF6F9;
+  --kelp:#2E9E8B; --kelp-soft:#DCEFE9; --gold:#DDA033; --gold-soft:#F6EBD2;
+  --coral:#D9544A; --coral-soft:#F6DEDB;
+  --ink:#102A38; --ink-2:#3C5867; --slate:#6A828F; --slate-2:#93A7B1;
+  --line:#DBE6EA; --paper:#F2F7F8; --surface:#FFFFFF;
+  /* Single-font system: --mono/--serif kept as aliases, both now resolve to Hanken
+     Grotesk. Italic is applied per-rule (font-style:italic), not via the font family. */
+  --mono:'Hanken Grotesk',sans-serif;
+  --serif:'Hanken Grotesk',sans-serif;
+  /* ---- responsive type scale (base = 17px after config.toml bump) ---- */
+  --fs-body:  clamp(0.9rem, .85rem + .15vw, 1rem);   /* standard body/caption text */
+  --fs-title: clamp(2.2rem, 1.4rem + 2.5vw, 3.4rem); /* ≥37px; species name */
+  --fs-hero:  clamp(2.4rem, 1.6rem + 3.5vw, 4rem);   /* home hero heading + species name */
+  --fs-hero-xl: clamp(7.2rem, 4.8rem + 10vw, 12rem); /* enlarged hero line + species name (≈3× fs-hero) */
+}
+
+/* ---- tool-wide body text floor: 1.1rem standard ---- */
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li {
+  font-size: var(--fs-body);
+}
+/* st.caption() is readable secondary text — hold it to the same 1.1rem floor */
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] p {
+  font-size: var(--fs-body);
+}
+
+/* ============ THE OCEAN RAIL ============ */
+section[data-testid="stSidebar"]{
+  background:linear-gradient(185deg,#2389C4 0%,#136BAE 46%,#0F5C96 100%) !important;
+}
+
+/* Spine page-link text + Material icon — larger for legibility */
+section[data-testid="stSidebar"] [data-testid="stPageLink"] p{
+  font-size:1.2rem; font-weight:500;
+}
+section[data-testid="stSidebar"] [data-testid="stPageLink"] [data-testid="stIconMaterial"]{
+  font-size:1.6rem;
+}
+
+/* Spine link text stays white in every state — the icon stroke colour is the
+   only state signal. Overrides Streamlit's sidebar primaryColor (#46B6CB aqua)
+   which recoloured the selected link and looked out of place. */
+section[data-testid="stSidebar"] [data-testid="stPageLink"] a p,
+section[data-testid="stSidebar"] [data-testid="stPageLink"] a:hover p,
+section[data-testid="stSidebar"] [data-testid="stPageLink"] a[aria-current="page"] p{
+  color:#fff !important;
+}
+/* Subtle chip marks the current page without a jarring colour shift */
+section[data-testid="stSidebar"] [data-testid="stPageLink"] a[aria-current="page"]{
+  background:rgba(255,255,255,.12);
+  border-radius:7px;
+}
+
+/* Active nav item → translucent chip */
+[data-testid="stSidebarNav"] a[aria-current="page"]{
+  background:rgba(255,255,255,.16);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);
+  border-radius:7px;
+}
+[data-testid="stSidebarNav"] ul{ gap:2px; }
+
+/* ============ SPECIES NAME (italic serif) ============ */
+/* Use: st.markdown('<span class="gias-species">Procambarus clarkii</span>', unsafe_allow_html=True) */
+.gias-species{
+  font-family:var(--serif); font-style:italic; font-weight:500;
+  font-size:var(--fs-hero-xl); line-height:1.12; color:var(--cyan-600);
+}
+.gias-species b{ font-style:normal; }
+/* Smaller inline variant for cards and chips */
+.gias-species-sm{
+  font-family:var(--serif); font-style:italic; font-weight:500;
+  font-size:1.1rem; color:var(--ocean-900);
+}
+
+/* ============ PROVENANCE CHIP (mono pill, coloured dot) ============ */
+/* Use: st.html('<span class="src is-gbif">GBIF</span>') */
+.src{
+  font-family:var(--mono); font-size:11px; color:var(--ocean-700);
+  background:var(--cyan-wash); border:1px solid var(--cyan-soft);
+  border-radius:5px; padding:1px 6px;
+  display:inline-flex; align-items:center; gap:5px; white-space:nowrap;
+}
+.src::before{
+  content:""; width:5px; height:5px; border-radius:50%; background:var(--ocean);
+  flex-shrink:0;
+}
+.src.is-iucn::before  { background:var(--kelp) }
+.src.is-gbif::before  { background:var(--ocean) }
+.src.is-easin::before { background:#7E86C8 }
+.src.is-cabi::before  { background:var(--gold) }
+.src.is-wrims::before { background:var(--cyan-600) }
+.src.is-paper::before { background:var(--coral) }
+.src.is-aquanis::before{ background:#9B8FBF }
+/* "no data" chip variant */
+.src.is-nodata{ background:#f5f5f5; border-color:var(--line); color:var(--slate); }
+.src.is-nodata::before{ background:var(--slate-2) }
+
+/* ============ KB STATS STRIP (st.metric, boxed) ============ */
+/* Wrap 3 metric columns in st.container(key="kbstats") */
+.st-key-kbstats [data-testid="stMetric"]{
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:7px; padding:6px 10px; text-align:center;
+}
+.st-key-kbstats [data-testid="stMetricValue"]{
+  font-family:var(--serif); font-size:16px; color:var(--ocean-900);
+}
+.st-key-kbstats [data-testid="stMetricLabel"]{
+  font-family:var(--mono); font-size:9px;
+  letter-spacing:.04em; text-transform:uppercase; color:var(--slate);
+}
+/* let the label use the full metric width so "SOURCES" doesn't truncate */
+.st-key-kbstats [data-testid="stMetricLabel"] > div{
+  overflow:visible; white-space:nowrap;
+}
+
+/* ============ EU CONCERN BADGE ============ */
+.badge-eu{
+  display:inline-flex; align-items:center; gap:7px;
+  background:var(--coral); color:#fff;
+  font-size:12px; font-weight:700; padding:6px 11px; border-radius:20px;
+}
+.badge-native{
+  display:inline-flex; align-items:center; gap:7px;
+  background:var(--kelp); color:#fff;
+  font-size:12px; font-weight:700; padding:6px 11px; border-radius:20px;
+}
+
+/* ============ TOPIC CARD ============ */
+/* Give each container key="topic_<slug>" */
+[class*="st-key-topic_"]{ transition:border-color .15s; }
+[class*="st-key-topic_"]:hover{ border-color:var(--cyan) !important; }
+/* "Fresh / just-extracted" card: key="topic_<slug>_fresh" */
+[class*="_fresh"]{
+  border-color:var(--kelp) !important;
+  box-shadow:0 0 0 2px var(--kelp-soft) !important;
+}
+
+/* ============ EQUAL-HEIGHT CARD GRID (the one standard) ============ */
+/* THE app-wide standard for equal-height cards. Wrap any st.columns card grid */
+/* in st.container(key="cardgrid…"); cards in a row stretch to equal height.   */
+/* Do NOT use per-page min-height hacks anywhere.                              */
+/*                                                                             */
+/* Verified against the live Streamlit 1.50 DOM, the column→card chain is:     */
+/*   stColumn > stVerticalBlock(content) > stLayoutWrapper > stVerticalBlock(card) */
+/* The stLayoutWrapper defaults to flex:0 1 auto (does NOT grow), so the card  */
+/* stays at content height inside a stretched column. Fix: force the column a  */
+/* flex-column and make EVERY block + layout wrapper in it grow (flex:1).      */
+[class*="st-key-cardgrid"] [data-testid="stHorizontalBlock"]{
+  align-items:stretch;
+}
+[class*="st-key-cardgrid"] [data-testid="stColumn"]{
+  display:flex;
+  flex-direction:column;
+}
+[class*="st-key-cardgrid"] [data-testid="stColumn"] [data-testid="stVerticalBlock"],
+[class*="st-key-cardgrid"] [data-testid="stColumn"] [data-testid="stLayoutWrapper"]{
+  flex:1 1 0%;
+}
+
+/* Legacy dashboard grid (keyed cards) — unchanged, already works */
+[class*="st-key-topic_grid"] [data-testid="stHorizontalBlock"]{
+  align-items:stretch;
+}
+[class*="st-key-topic_grid"] [data-testid="stColumn"]{
+  display:flex;
+  flex-direction:column;
+}
+[class*="st-key-topic_grid"] [data-testid="stColumn"] > [data-testid="stVerticalBlock"]{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+[class*="st-key-topic_grid"] [class*="st-key-topic_"]{
+  flex:1;
+}
+
+/* ============ CONFLICT BOX (render via st.html) ============ */
+/*
+  st.html('''
+    <div class="confbox">
+      <div class="confbox__hd">⚠ Reported as 2 different values</div>
+      <div class="confval">
+        <span class="v">Malacostraca</span>
+        <span class="srcs"><span class="src is-easin">EASIN</span>…</span>
+      </div>
+      <div class="confval">…</div>
+      <div class="confnote">Provenance differs — not auto-resolved.</div>
+    </div>''')
+*/
+.confbox{ border:1px solid var(--coral-soft); border-radius:7px; overflow:hidden; }
+.confbox__hd{
+  padding:6px 11px; background:var(--coral-soft); color:#9c3127;
+  font-size:11px; font-weight:700; font-family:var(--mono);
+  letter-spacing:.03em; text-transform:uppercase;
+}
+.confval{
+  display:flex; align-items:center; gap:10px;
+  padding:9px 11px; border-bottom:1px solid var(--line);
+}
+.confval:last-of-type{ border-bottom:0; }
+.confval .v{ font-family:var(--serif); font-style:italic; font-size:15px; }
+.confval .srcs{ margin-left:auto; display:flex; gap:4px; flex-wrap:wrap; }
+.confnote{ padding:7px 11px; font-size:11px; color:var(--slate); }
+
+/* ============ AI-PROPOSED tag ============ */
+.tag-ai{
+  font-family:var(--mono); font-size:10px; font-weight:600;
+  background:var(--gold-soft); color:#7a540f; border:1px solid #e8cc89;
+  border-radius:4px; padding:1px 5px;
+}
+/* Kelp +N new tag */
+.tag-new{
+  font-family:var(--mono); font-size:10px; font-weight:600;
+  background:var(--kelp-soft); color:#1a6b5e; border:1px solid #8ecfc5;
+  border-radius:4px; padding:1px 5px;
+}
+
+/* ============ LANDING / HOME PAGE ============ */
+/* Centered hero section on the home/landing view */
+.gias-hero{
+  max-width:760px; margin:2rem auto 1.5rem; text-align:center;
+  padding:0 1.5rem;
+}
+.gias-hero .tagline{
+  font-size:var(--fs-body); color:var(--ink-2); margin-bottom:2rem; line-height:1.6;
+}
+/* Hero row: shield icon beside the GIAS wordmark */
+.gias-hero-row{
+  display:flex; align-items:center; justify-content:center;
+  gap:1rem; margin-bottom:.6rem;
+}
+/* "GIAS" large logotype — heavy, serif */
+.gias-wordmark{
+  font-family:var(--serif); font-weight:600; color:var(--ocean-900);
+  font-size:clamp(3.2rem, 2rem + 5vw, 5.5rem);
+  line-height:1; letter-spacing:-.02em;
+}
+/* Subtitle line under wordmark */
+.gias-hero-sub{
+  font-size:.95rem; color:var(--slate); letter-spacing:.04em;
+  text-transform:uppercase; margin-bottom:.6rem;
+}
+/* Overview flow strip: step icons + labels + separators */
+.gias-flow{
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+  gap:.4rem; padding:1.2rem 1rem; background:var(--paper);
+  border-radius:11px; border:1px solid var(--line);
+}
+.gias-flow-step{
+  display:flex; flex-direction:column; align-items:center; gap:.3rem;
+  font-size:1.1rem; color:var(--ink-2); font-weight:500;
+}
+.gias-flow-sep{
+  color:var(--slate-2); font-size:1.1rem; align-self:center; flex-shrink:0;
+}
+/* Author credit block */
+.gias-credit{
+  display:flex; align-items:center; justify-content:center; gap:.7rem;
+  margin-top:2.5rem; padding-top:1.2rem; border-top:1px solid var(--line);
+  font-size:1.1rem; color:var(--slate);
+}
+.gias-credit a{ color:var(--ocean); text-decoration:none; font-weight:500; }
+.gias-credit a:hover{ color:var(--ocean-700); text-decoration:underline; }
+
+/* Home page section eyebrow — "THE SCREENS · OPEN ANY", "WHAT CHANGED VS. STREAMLIT" */
+.gias-eyebrow{
+  font-family:var(--mono); font-size:.8rem; font-weight:600;
+  color:var(--slate); letter-spacing:.1em; text-transform:uppercase;
+  margin-bottom:1rem;
+}
+/* Screen card eyebrow label (00·transparency, centerpiece, etc.) */
+.gias-card-eye{
+  font-family:var(--mono); font-size:.75rem; font-weight:600;
+  color:var(--cyan-600); letter-spacing:.06em; text-transform:lowercase;
+  margin-bottom:.3rem;
+}
+/* Dashed-frame SVG thumbnail container */
+.gias-thumb{
+  border:1.5px dashed var(--line); border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  width:80px; min-width:80px; height:72px;
+  background:var(--paper); flex-shrink:0;
+}
+/* Screen card row layout: thumb + content side by side */
+.gias-card-row{
+  display:flex; gap:1.1rem; align-items:flex-start;
+}
+.gias-card-body{ flex:1; min-width:0; }
+.gias-card-title{
+  font-family:var(--serif); font-weight:500; font-size:1.15rem;
+  color:var(--ink); margin:0 0 .35rem; line-height:1.25;
+}
+.gias-card-desc{
+  font-size:1.1rem; color:var(--ink-2); line-height:1.55; margin:0 0 .7rem;
+}
+/* "What changed" badge icon */
+.gias-badge-icon{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:38px; height:38px; border-radius:9px;
+  margin-bottom:.7rem;
+}
+.gias-badge-ocean{ background:var(--cyan-wash); }
+.gias-badge-kelp { background:var(--kelp-soft); }
+.gias-badge-gold { background:var(--gold-soft); }
+
+/* ============ LAYOUT CONSTRAINTS ============ */
+/* Keep the wide layout readable — mirror the mock's breathing room */
+/* padding-top must clear Streamlit's fixed top toolbar (~60px) so the
+   species context bar isn't clipped underneath it. */
+.block-container{ padding-top:4.5rem; padding-bottom:3rem; max-width:1180px; }
+
+/* ============ RESEARCH — SOURCE ROWS ============ */
+/* st.container(border=True, key="src_row_{id}") */
+[class*="st-key-src_row_"]:hover{ border-color:var(--cyan) !important; cursor:pointer; }
+
+/* ============ RESEARCH — TOPIC CHIP GRID ============ */
+/* st.container(border=True, key="rtopic_{slug}") */
+[class*="st-key-rtopic_"]{ transition:border-color .15s, box-shadow .15s; }
+[class*="st-key-rtopic_"]:hover{ border-color:var(--cyan) !important; }
+
+/* ============ RESEARCH — BETA CUSTOM-TOPIC CARD ============ */
+/* st.container(border=True, key="beta_custom_topic") */
+.st-key-beta_custom_topic{
+  border:1.5px dashed var(--gold) !important;
+  background:linear-gradient(135deg,#fffdf5 0%,#fef9ec 100%) !important;
+}
+
+/* ============ RESEARCH — FILTER CARDS ============ */
+/* st.container(border=True, key="filter_card_academic" / "filter_card_constraints") */
+.st-key-filter_card_academic,
+.st-key-filter_card_constraints{
+  background:var(--paper) !important;
+}
+
+/* ============ EXTRACT — STUDY QUEUE SCROLLER ============ */
+/* st.container(key="study_queue", horizontal=True) is a native flex row;
+   chips use width=220 for fixed size. We only need overflow + no-wrap here. */
+.st-key-study_queue{
+  overflow-x:auto;
+  flex-wrap:nowrap;
+  padding-bottom:8px;
+  scrollbar-width:thin;
+}
+
+/* ============ EXTRACT — STUDY QUEUE CHIPS ============ */
+/* Inactive chips */
+[class*="st-key-qchip_"]{
+  transition:border-color .15s, box-shadow .15s;
+}
+[class*="st-key-qchip_"]:hover{
+  border-color:var(--cyan) !important;
+}
+/* Active chip — key prefix qchip_active_ */
+[class*="st-key-qchip_active_"]{
+  border-color:var(--ocean) !important;
+  box-shadow:0 0 0 2px var(--cyan-soft) !important;
+}
+
+/* ============ REPORT — BUILD REPORT PAGE (Screen 4) ============ */
+/* Topics card */
+.st-key-report_topics{
+  background:var(--paper) !important;
+}
+/* Each topic checkbox row gets a subtle hover tint */
+.st-key-report_topics label:hover{
+  color:var(--ocean) !important;
+}
+/* Reference style card */
+.st-key-report_reference{
+  background:var(--paper) !important;
+}
+/* Include toggles card */
+.st-key-report_include{
+  background:var(--paper) !important;
+}
+/* Preview card — slightly darker surface to frame the PDF embed */
+.st-key-report_preview{
+  background:var(--surface) !important;
+}
+/* KB-updated merge banner */
+.st-key-rpt_kb_banner [data-testid="stAlert"]{
+  border-left:3px solid var(--kelp) !important;
+}
+
+/* ============ DEEP RESEARCH — LEFT LIST SCROLLER ============ */
+/* st.container(height=, key="src_scroll") holds the source rows. Make the
+   scroll affordance obvious: a soft framing border, an always-visible thin
+   scrollbar, and a bottom fade gradient hinting there are more rows below. */
+.st-key-src_scroll{
+  position:relative;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:4px 6px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--cyan-600) var(--cyan-wash);
+}
+.st-key-src_scroll::-webkit-scrollbar,
+.st-key-src_scroll *::-webkit-scrollbar{
+  width:10px;
+}
+.st-key-src_scroll::-webkit-scrollbar-track,
+.st-key-src_scroll *::-webkit-scrollbar-track{
+  background:var(--cyan-wash);
+  border-radius:6px;
+}
+.st-key-src_scroll::-webkit-scrollbar-thumb,
+.st-key-src_scroll *::-webkit-scrollbar-thumb{
+  background:var(--cyan-600);
+  border-radius:6px;
+}
+/* Bottom fade — sticky gradient overlay anchored to the scroll viewport bottom,
+   pulled up over the last rows. pointer-events:none so it never blocks clicks. */
+.st-key-src_scroll::after{
+  content:"";
+  position:sticky;
+  bottom:0;
+  left:0;
+  display:block;
+  height:32px;
+  margin-top:-32px;
+  pointer-events:none;
+  background:linear-gradient(to bottom, rgba(242,247,248,0), var(--paper));
+}

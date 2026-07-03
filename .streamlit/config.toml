@@ -1,0 +1,50 @@
+# ============================================================
+#  GIAS — .streamlit/config.toml
+#  Marine field-guide visual system (v2 redesign).
+#  Restart the Streamlit server after changing fonts.
+# ============================================================
+
+[theme]
+base                     = "light"
+primaryColor             = "#136BAE"   # Ocean — buttons, focus rings, active nav
+backgroundColor          = "#F2F7F8"   # Paper — app canvas
+secondaryBackgroundColor = "#FFFFFF"   # Surface — cards, inputs, code background
+textColor                = "#102A38"   # Ink
+linkColor                = "#0E5589"   # Ocean-700
+borderColor              = "#DBE6EA"   # Line — card & widget borders
+showWidgetBorder         = true
+baseRadius               = "11px"
+buttonRadius             = "7px"
+baseFontSize             = 17
+
+# Single-font system: Hanken Grotesk everywhere (UI, headings, data).
+# Italic axis is imported so Latin binomials render as true italics.
+font        = "'Hanken Grotesk':https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap, sans-serif"
+headingFont = "'Hanken Grotesk', sans-serif"
+codeFont    = "'Hanken Grotesk', sans-serif"
+headingFontWeights = 500
+
+# Chart colors — ocean system + registry topic palette
+chartCategoricalColors = ["#136BAE","#2E9E8B","#DDA033","#46B6CB","#D9544A","#7E86C8","#9B8FBF"]
+
+# ---- Sidebar themed independently (ocean rail) ----
+[theme.sidebar]
+backgroundColor          = "#136BAE"   # Ocean flat — gradient added via shell.css
+secondaryBackgroundColor = "#0F5C96"   # recessed activity-log panel
+textColor                = "#FFFFFF"
+primaryColor             = "#46B6CB"   # Wave aqua — active nav item
+linkColor                = "#CFEAF0"
+borderColor              = "rgba(255,255,255,0.14)"
+
+[client]
+# Hide the auto-generated nav so the custom journey spine (components.py) is
+# the sole navigation. st.navigation still handles routing; only the visual is suppressed.
+showSidebarNavigation = false
+initialSidebarState   = "expanded"
+
+[server]
+enableCORS            = false
+enableXsrfProtection  = false
+
+[browser]
+gatherUsageStats = false

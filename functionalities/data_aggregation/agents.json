@@ -1,0 +1,25 @@
+{
+  "_comment": "AI agent configuration for the data aggregation pipeline. Edit model/temperature here — no code changes needed.",
+  "agents": {
+    "data_categorization": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.1,
+      "description": "Maps uncategorized API fields to schema categories"
+    },
+    "species_analysis": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.1,
+      "description": "Generates species summary from aggregated database data"
+    },
+    "data_aggregation_pipeline": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.1,
+      "description": "Orchestrates multi-database species data collection"
+    },
+    "species_name_validator": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.3,
+      "description": "Validates and corrects species names, translates common names to Latin"
+    }
+  }
+}

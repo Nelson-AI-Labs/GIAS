@@ -1,0 +1,20 @@
+{
+  "_comment": "AI agent configuration for shared core services. Edit model/temperature here — no code changes needed.",
+  "agents": {
+    "species_context": {
+      "model": "mistral-small-latest",
+      "temperature": 0.1,
+      "description": "Lightweight species context lookups (wrong-species examples, name variants)"
+    },
+    "geo_normalizer": {
+      "model": "mistral-small-latest",
+      "temperature": 0.1,
+      "description": "Normalises geographic place names to standard forms"
+    },
+    "topic_suggestion": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.3,
+      "description": "Suggests relevant research topics for a species query"
+    }
+  }
+}

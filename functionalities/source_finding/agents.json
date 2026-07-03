@@ -1,0 +1,10 @@
+{
+  "_comment": "AI agent configuration for source finding. Edit model/temperature here — no code changes needed.",
+  "agents": {
+    "relevance_filter": {
+      "model": "mistral-medium-latest",
+      "temperature": 0.0,
+      "description": "Binary relevance decision — filters search results to species-relevant sources only"
+    }
+  }
+}

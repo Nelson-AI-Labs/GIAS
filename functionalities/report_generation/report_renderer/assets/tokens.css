@@ -1,0 +1,164 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 The GIAS Authors */
+
+/* ============================================================
+   GIAS · GuardIAS Intelligence Analyst System
+   Marine / field-guide design system
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ---- Brand: GuardIAS ocean palette ---- */
+  --ocean:        #136BAE;   /* primary deep blue (the "Guard") */
+  --ocean-700:    #0E5589;
+  --ocean-900:    #0B3A60;   /* shield navy, deep ink-blue */
+  --cyan:         #46B6CB;   /* the "IAS" aqua */
+  --cyan-600:     #2E9DB5;
+  --cyan-soft:    #CFEAF0;   /* pale wave */
+  --cyan-wash:    #EAF6F9;
+
+  --kelp:         #2E9E8B;   /* success / found / native */
+  --kelp-soft:    #DCEFE9;
+  --gold:         #DDA033;   /* attention / AI-proposed / observed */
+  --gold-soft:    #F6EBD2;
+  --coral:        #D9544A;   /* conflict / EU concern / failed / introduced */
+  --coral-soft:   #F6DEDB;
+  --lav:          #7E86C8;   /* secondary info */
+  --lav-soft:     #E6E7F4;
+
+  /* ---- Neutrals (cool, sea-foam paper) ---- */
+  --ink:          #102A38;   /* primary text, deep slate */
+  --ink-2:        #3C5867;   /* secondary text */
+  --slate:        #6A828F;   /* muted / captions */
+  --slate-2:      #93A7B1;   /* faint */
+  --line:         #DBE6EA;   /* borders */
+  --line-soft:    #EAF1F3;
+  --paper:        #F2F7F8;   /* app background */
+  --paper-2:      #E9F1F3;   /* recessed panels */
+  --surface:      #FFFFFF;
+
+  /* ---- Type ---- */
+  --serif: 'Newsreader', Georgia, serif;
+  --sans:  'Hanken Grotesk', system-ui, sans-serif;
+  --mono:  'IBM Plex Mono', ui-monospace, monospace;
+
+  /* ---- Radius / shadow ---- */
+  --r-sm: 7px;
+  --r-md: 11px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --shadow-sm: 0 1px 2px rgba(16,42,56,.05), 0 1px 1px rgba(16,42,56,.04);
+  --shadow-md: 0 2px 6px rgba(16,42,56,.06), 0 8px 22px rgba(16,42,56,.06);
+  --shadow-lg: 0 8px 18px rgba(16,42,56,.08), 0 22px 50px rgba(16,42,56,.10);
+  --ring: 0 0 0 3px rgba(19,107,174,.16);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- Shared type helpers ---- */
+.u-serif { font-family: var(--serif); }
+.u-mono  { font-family: var(--mono); }
+.u-sci   { font-family: var(--serif); font-style: italic; }      /* latin / species names */
+.u-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--slate);
+  font-weight: 500;
+}
+
+/* ---- Source / provenance chip ---- */
+.src {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .02em;
+  color: var(--ocean-700);
+  background: var(--cyan-wash);
+  border: 1px solid var(--cyan-soft);
+  border-radius: 5px;
+  padding: 1px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.src::before {
+  content: "";
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--ocean);
+}
+.src.is-iucn::before  { background: var(--kelp); }
+.src.is-gbif::before  { background: var(--ocean); }
+.src.is-easin::before { background: var(--lav); }
+.src.is-cabi::before  { background: var(--gold); }
+.src.is-wrims::before { background: var(--cyan-600); }
+.src.is-paper::before { background: var(--coral); }
+
+/* ---- Status dot ---- */
+.dot { width: 7px; height: 7px; border-radius: 50%; display:inline-block; }
+.dot--found  { background: var(--kelp); }
+.dot--query  { background: var(--ocean); }
+.dot--none   { background: var(--slate-2); }
+.dot--fail   { background: var(--coral); }
+
+/* ---- Scrollbars ---- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #C3D6DC; border-radius: 20px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #A9C4CC; background-clip: padding-box; border: 3px solid transparent; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- Specimen plate: field-guide silhouette placeholder ---- */
+.plate {
+  position: relative;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(16,42,56,.08) 1px, transparent 0) 0 0 / 9px 9px,
+    linear-gradient(180deg, #FBFDFD, #F1F7F8);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.plate__corner {
+  position: absolute; width: 10px; height: 10px;
+  border-color: var(--slate-2); border-style: solid; border-width: 0;
+}
+.plate__corner.tl { top: 8px; left: 8px; border-top-width: 1.5px; border-left-width: 1.5px; }
+.plate__corner.tr { top: 8px; right: 8px; border-top-width: 1.5px; border-right-width: 1.5px; }
+.plate__corner.bl { bottom: 8px; left: 8px; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+.plate__corner.br { bottom: 8px; right: 8px; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+.plate__cap {
+  position: absolute; bottom: 7px; left: 0; right: 0; text-align: center;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--slate-2);
+}
+
+/* ---- Buttons ---- */
+.btn {
+  font-family: var(--sans); font-weight: 600; font-size: 13.5px;
+  border-radius: var(--r-sm); border: 1px solid transparent;
+  padding: 9px 15px; cursor: pointer; display: inline-flex; align-items: center;
+  gap: 8px; transition: .15s ease; line-height: 1; white-space: nowrap;
+}
+.btn--primary { background: var(--ocean); color: #fff; box-shadow: var(--shadow-sm); }
+.btn--primary:hover { background: var(--ocean-700); }
+.btn--ghost { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.btn--ghost:hover { border-color: var(--cyan); color: var(--ocean-700); }
+.btn--quiet { background: transparent; color: var(--ink-2); }
+.btn--quiet:hover { background: var(--paper-2); }
+.btn--accept { background: var(--kelp); color: #fff; }
+.btn--accept:hover { filter: brightness(.95); }
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
