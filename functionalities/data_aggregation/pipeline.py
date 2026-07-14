@@ -369,7 +369,7 @@ def run_species_database_pipeline(species_name: str) -> Dict[str, Any]:
 # SYNONYM-AWARE PIPELINE (WITH HAYSTACK LOOP ARCHITECTURE)
 # ============================================================================
 
-def create_synonym_aware_pipeline() -> Pipeline:
+def create_synonym_aware_pipeline(max_runs: int) -> Pipeline:
     """
     Create synonym-aware species database pipeline with Haystack loop architecture.
 
@@ -384,7 +384,10 @@ def create_synonym_aware_pipeline() -> Pipeline:
         Configured Pipeline with loop connections
     """
 
-    pipeline = Pipeline(max_runs_per_component=20)  # Safety limit for synonym iteration
+    # The loop runs each component once per synonym, so the guard must scale with
+    # the synonym count (max_runs = len(synonym_list) + buffer). A fixed cap would
+    # crash any species with more variants than the cap.
+    pipeline = Pipeline(max_runs_per_component=max_runs)
 
     # Add orchestration components
     pipeline.add_component("synonym_coordinator", SynonymCoordinator())
@@ -501,7 +504,7 @@ def run_species_database_pipeline_with_synonyms(user_input: str, progress_callba
 
         # Step 2: Create and run synonym-aware pipeline
         print("\nStep 2: Running Haystack loop pipeline...")
-        pipeline = create_synonym_aware_pipeline()
+        pipeline = create_synonym_aware_pipeline(max_runs=len(synonym_list) + 5)
 
         # Create RawDataStore for this species
         raw_store = RawDataStore(universal_id=cache_id)
