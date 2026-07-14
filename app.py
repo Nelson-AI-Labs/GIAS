@@ -56,7 +56,7 @@ st.logo(
 )
 
 # ── 1. Session lifecycle ──────────────────────────────────────────────────────
-start_session_gc(ttl_minutes=120, interval_minutes=10)
+start_session_gc(ttl_minutes=300, interval_minutes=10)
 (get_session_cache_base() / ".last_active").touch()
 
 # Restore research workspace + routing state after a refresh or reconnect.
@@ -113,9 +113,12 @@ with st.sidebar:
         "<div style='display:flex;gap:0.45rem;margin-bottom:0.4rem'>"
         "<span>•</span><span>AI can make mistakes. Always verify against the "
         "original sources.</span></div>"
-        "<div style='display:flex;gap:0.45rem'>"
+        "<div style='display:flex;gap:0.45rem;margin-bottom:0.4rem'>"
         "<span>•</span><span>Your expertise stays essential for interpretation "
         "and decisions.</span></div>"
+        "<div style='display:flex;gap:0.45rem'>"
+        "<span>•</span><span>Inactive sessions are automatically cleared after "
+        "5 hours.</span></div>"
         "</div>",
         unsafe_allow_html=True,
     )
