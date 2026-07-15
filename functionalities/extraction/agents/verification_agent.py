@@ -111,9 +111,8 @@ class ExtractionVerificationAgent:
         self.extracted_data_dir = extracted_data_dir
 
         if not extracted_data:
-            # Empty input (extraction failed or found nothing). Return without emitting
-            # the progress label — matches the former flow where verification was not
-            # reached on the failed/no_data short-circuit.
+            # Nothing to verify: return before emitting the progress label so the UI
+            # does not show "Verifying facts" for a source that produced no data.
             return {
                 "verified_data": {},
                 "removed_fields": {},
@@ -126,9 +125,8 @@ class ExtractionVerificationAgent:
         if self.progress_callback:
             self.progress_callback("Verifying facts")
 
-        # When run inside a Haystack pipeline, a ParagraphResolver cannot be passed
-        # through a connection (complex object), so build a fresh one from source_text.
-        # Matches the former inline behaviour where the caller built and passed it.
+        # A ParagraphResolver cannot travel through a Haystack connection (complex
+        # object), so when one is not supplied, build a fresh one from source_text.
         if paragraph_resolver is None and source_text:
             from functionalities.extraction.utils.paragraph_resolver import ParagraphResolver
             paragraph_resolver = ParagraphResolver(source_text)

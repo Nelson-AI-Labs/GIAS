@@ -4,12 +4,9 @@
 """
 MarkdownPreprocessor Component
 
-Wraps the deterministic pre-extraction glue (citation backfill, language
-detection/translation, boilerplate noise stripping) as a single Haystack
-component so the Source Extraction Pipeline can run it as a graph node.
-
-The logic is lifted verbatim from the former inline steps in
-standard_pipeline.run_source_extraction_pipeline — no behavioural change.
+Deterministic pre-extraction glue as a single Haystack component: citation
+backfill, language detection/translation, and boilerplate noise stripping.
+Runs between PDF conversion and extraction.
 """
 
 from typing import Dict, Any, Optional

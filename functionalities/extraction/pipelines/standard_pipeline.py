@@ -139,11 +139,10 @@ def create_source_extraction_pipeline(
     Flow: pdf_converter → pdf_router → preprocess → extraction_agent
           → verification_agent → output_saver
 
-    pdf_router (ConditionalRouter) gates the chain: on PDF-conversion failure the
-    "markdown_failed" branch dead-ends, so no downstream component runs. The
-    extraction-failed and no_data short-circuits are handled after the run by the
-    result-assembly shim in run_source_extraction_pipeline (reads component outputs
-    via include_outputs_from) — cleaner than forwarding every field through routers.
+    pdf_router routes the "markdown_failed" branch to a dead end on PDF-conversion
+    failure, so no downstream component runs. Extraction-failed and no_data cases
+    still traverse the graph (cheaply) and are resolved by the caller from the
+    component outputs it collects via include_outputs_from.
     """
     pipeline = Pipeline()
 
@@ -223,8 +222,7 @@ def run_source_extraction_pipeline(
             coverage_check=extraction_cfg.get("coverage_check", True),
         )
 
-        # Wire progress callbacks onto the components (data_aggregation pattern):
-        # each stage emits its own label as it runs.
+        # Each stage emits its own progress label as it runs.
         if progress_callback:
             for name in ("pdf_converter", "preprocess", "extraction_agent", "verification_agent"):
                 pipeline.get_component(name).progress_callback = progress_callback
@@ -269,8 +267,8 @@ def run_source_extraction_pipeline(
             },
         )
 
-        # ── Result-assembly shim: graph outputs → legacy return contract ──────────
-        # Reproduces the exact short-circuit semantics of the former inline returns.
+        # Map the collected component outputs to the return dict, applying the
+        # short-circuit order: PDF failure, then extraction failure, then no_data.
         pdf_out = result.get("pdf_converter", {})
         if pdf_out.get("extraction_status") == "failed":
             return {
@@ -349,9 +347,9 @@ def run_source_extraction_pipeline(
 class ContextProcessor:
     """Filter context extraction locally and persist it — the context path's terminal node.
 
-    Replaces the LLM verifier for context fields: the paper_summary schema is fixed, so
-    the structural checks in _filter_context_fields are sufficient (see that function's
-    docstring for why LLM verification is avoided here). No-ops on failed/empty input.
+    Context fields use the structural checks in _filter_context_fields rather than LLM
+    verification: the paper_summary schema is fixed, so structural checks suffice (see
+    that function's docstring). Returns empty on failed/empty input.
     """
 
     @component.output_types(
@@ -403,9 +401,9 @@ class ContextProcessor:
 def create_context_extraction_pipeline(generator: Any) -> Pipeline:
     """Build the context (paper_summary) extraction pipeline as a Haystack graph.
 
-    Same shape as the topic pipeline (pdf_converter → pdf_router → preprocess →
-    extraction_agent) but ends in a local ContextProcessor (structural filter + save)
-    instead of the LLM verifier.
+    Flow: pdf_converter → pdf_router → preprocess → extraction_agent →
+    context_processor. The terminal ContextProcessor applies a local structural
+    filter and saves, in place of the topic path's LLM verifier.
     """
     pipeline = Pipeline()
 
@@ -481,9 +479,9 @@ def run_context_extraction_for_source(
     total_fields = 0
     translation_meta: Dict[str, Any] = {}
 
-    # context_keys is a single key today ('paper_summary'), so the full pipeline
-    # (incl. PDF conversion + preprocess) runs once per key. If context prompts
-    # multiply, hoist conversion/preprocess out of this loop to avoid re-parsing.
+    # Each key runs the full pipeline, including PDF conversion and preprocess. With
+    # more than one key this re-parses the PDF per key; hoist conversion/preprocess
+    # out of the loop if the context-key set grows.
     for context_key in context_keys:
         print(f"[Context] Extracting {context_key} from source '{source_id}'...")
         try:
@@ -521,7 +519,7 @@ def run_context_extraction_for_source(
             }
             continue
 
-        # PDF failure aborts the whole source (matches the former pre-loop check).
+        # PDF failure aborts the whole source, not just this key.
         pdf_out = result.get("pdf_converter", {})
         if pdf_out.get("extraction_status") == "failed":
             return {

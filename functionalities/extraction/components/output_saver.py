@@ -4,10 +4,8 @@
 """
 OutputSaver Component
 
-Wraps save_extraction_output as a Haystack component so persisting verified
-extraction data becomes the terminal node of the extraction graph. No-ops
-(returns output_filepath=None) when there is nothing to save, matching the
-former `if save_output and verified_data:` guard.
+Persist verified extraction data as the terminal node of the extraction graph.
+Returns output_filepath=None when saving is disabled or there is nothing to save.
 """
 
 from pathlib import Path
