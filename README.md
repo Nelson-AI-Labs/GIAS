@@ -13,7 +13,7 @@
 
 *Part of the EU Horizon GuardIAS Project*
 
-**▶ Try it live: [gias-tool.streamlit.app](https://gias-tool.streamlit.app/)**
+**▶ Try it live: [gias-tool.streamlit.app](https://gias-tool.streamlit.app/?gias_cid=96ffa394b7884444b79070f83eb11450/)**
 
 </div>
 
