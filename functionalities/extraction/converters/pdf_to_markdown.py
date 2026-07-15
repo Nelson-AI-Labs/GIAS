@@ -46,7 +46,8 @@ class PDFToMarkdownConverter:
 
     def __init__(self):
         """Initialize the PDF to Markdown converter."""
-        pass
+        # Optional callback(label) — set externally before pipeline.run().
+        self.progress_callback = None
 
     @component.output_types(
         markdown_text=str,
@@ -75,6 +76,8 @@ class PDFToMarkdownConverter:
                 - page_count: Number of pages processed
                 - character_count: Total characters extracted
         """
+        if self.progress_callback:
+            self.progress_callback("Converting PDF")
         try:
             # Create PDF reader from bytes
             pdf_file = io.BytesIO(pdf_bytes)

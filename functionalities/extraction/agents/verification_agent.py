@@ -49,6 +49,8 @@ class ExtractionVerificationAgent:
         """
         self.generator = generator
         self._prompt_template = _PROMPT_FILE.read_text(encoding="utf-8")
+        # Optional callback(label) — set externally before pipeline.run().
+        self.progress_callback = None
 
         # Track IDs for cache saving
         self.universal_id = None
@@ -109,6 +111,9 @@ class ExtractionVerificationAgent:
         self.extracted_data_dir = extracted_data_dir
 
         if not extracted_data:
+            # Empty input (extraction failed or found nothing). Return without emitting
+            # the progress label — matches the former flow where verification was not
+            # reached on the failed/no_data short-circuit.
             return {
                 "verified_data": {},
                 "removed_fields": {},
@@ -117,6 +122,16 @@ class ExtractionVerificationAgent:
                 "verification_report": {},
                 "fields_removed_count": 0
             }
+
+        if self.progress_callback:
+            self.progress_callback("Verifying facts")
+
+        # When run inside a Haystack pipeline, a ParagraphResolver cannot be passed
+        # through a connection (complex object), so build a fresh one from source_text.
+        # Matches the former inline behaviour where the caller built and passed it.
+        if paragraph_resolver is None and source_text:
+            from functionalities.extraction.utils.paragraph_resolver import ParagraphResolver
+            paragraph_resolver = ParagraphResolver(source_text)
 
         # Separate fields by whether anchor resolution found a passage.
         # Fields without a candidate_source_quote are auto-removed — no Mistral call needed.

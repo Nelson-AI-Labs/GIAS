@@ -96,6 +96,8 @@ class DataExtractionAgent:
         self.generator = generator
         self.coverage_check = coverage_check
         self._bm25_alpha = bm25_alpha
+        # Optional callback(label) — set externally before pipeline.run().
+        self.progress_callback = None
 
         # Set prompts directory for topic-specific prompts
         if prompts_directory is None:
@@ -124,6 +126,7 @@ class DataExtractionAgent:
         extracted_data=Dict[str, Any],
         extraction_status=str,
         error_message=Optional[str],
+        error_type=Optional[str],
         fields_extracted=int
     )
     def run(
@@ -156,6 +159,8 @@ class DataExtractionAgent:
                 - error_message: Error description if failed, None otherwise
                 - fields_extracted: Number of fields successfully extracted
         """
+        if self.progress_callback:
+            self.progress_callback("Extracting data")
         try:
             # Build paragraph index for this document (used by find_passage tool)
             resolver = ParagraphResolver(markdown_text, bm25_alpha=self._bm25_alpha)

@@ -16,7 +16,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-from haystack import Pipeline
+from haystack import Pipeline, component
+from haystack.components.routers import ConditionalRouter
 
 from core.utils.generator_factory import create_generator, get_agent_config
 
@@ -24,12 +25,12 @@ from core.utils.generator_factory import create_generator, get_agent_config
 from functionalities.extraction.converters.pdf_to_markdown import PDFToMarkdownConverter
 from functionalities.extraction.agents.data_extraction_agent import DataExtractionAgent
 from functionalities.extraction.agents.verification_agent import ExtractionVerificationAgent
+from functionalities.extraction.components.markdown_preprocessor import MarkdownPreprocessor
+from functionalities.extraction.components.output_saver import OutputSaver
 
 # Import registries and utilities
 from core.registries.context_registry import ContextPromptRegistry
 from functionalities.extraction.utils.output_saver import save_extraction_output
-from functionalities.extraction.utils.paragraph_resolver import strip_noise_sections, ParagraphResolver
-from core.utils.language_utils import detect_language, translate_to_english
 
 # Import session-aware cache manager
 from core.utils.cache_manager import get_extracted_data_dir
@@ -128,6 +129,52 @@ def _filter_context_fields(
     return kept, removed, n_removed
 
 
+def create_source_extraction_pipeline(
+    generator: Any,
+    verification_generator: Any,
+    coverage_check: bool,
+) -> Pipeline:
+    """Build the topic Source Extraction Pipeline as a Haystack graph.
+
+    Flow: pdf_converter → pdf_router → preprocess → extraction_agent
+          → verification_agent → output_saver
+
+    pdf_router (ConditionalRouter) gates the chain: on PDF-conversion failure the
+    "markdown_failed" branch dead-ends, so no downstream component runs. The
+    extraction-failed and no_data short-circuits are handled after the run by the
+    result-assembly shim in run_source_extraction_pipeline (reads component outputs
+    via include_outputs_from) — cleaner than forwarding every field through routers.
+    """
+    pipeline = Pipeline()
+
+    pipeline.add_component("pdf_converter", PDFToMarkdownConverter())
+    pipeline.add_component("pdf_router", ConditionalRouter(routes=[
+        {"condition": "{{ status != 'failed' }}", "output": "{{ markdown }}",
+         "output_name": "markdown_ok", "output_type": str},
+        {"condition": "{{ status == 'failed' }}", "output": "{{ markdown }}",
+         "output_name": "markdown_failed", "output_type": str},
+    ]))
+    pipeline.add_component("preprocess", MarkdownPreprocessor())
+    # bm25_alpha=0.60: topic queries are descriptive paraphrases (not verbatim text),
+    # so semantic scoring needs real weight to anchor them.
+    pipeline.add_component("extraction_agent", DataExtractionAgent(
+        generator=generator, coverage_check=coverage_check, bm25_alpha=0.60))
+    pipeline.add_component("verification_agent",
+                           ExtractionVerificationAgent(generator=verification_generator))
+    pipeline.add_component("output_saver", OutputSaver())
+
+    pipeline.connect("pdf_converter.markdown_text", "pdf_router.markdown")
+    pipeline.connect("pdf_converter.extraction_status", "pdf_router.status")
+    pipeline.connect("pdf_router.markdown_ok", "preprocess.markdown_text")
+    pipeline.connect("preprocess.markdown_text", "extraction_agent.markdown_text")
+    pipeline.connect("preprocess.markdown_text", "verification_agent.source_text")
+    pipeline.connect("preprocess.source_metadata", "output_saver.source_metadata")
+    pipeline.connect("extraction_agent.extracted_data", "verification_agent.extracted_data")
+    pipeline.connect("verification_agent.verified_data", "output_saver.verified_data")
+
+    return pipeline
+
+
 def run_source_extraction_pipeline(
     pdf_bytes: bytes,
     source_metadata: Dict[str, Any],
@@ -169,101 +216,85 @@ def run_source_extraction_pipeline(
         if session_id is None:
             session_id = get_session_id()
 
-        generator = create_generator("data_extraction")
         extraction_cfg = get_agent_config("data_extraction")
-        pdf_converter = PDFToMarkdownConverter()
-        # bm25_alpha=0.60: topic extraction queries are descriptive paraphrases
-        # (not verbatim text), so semantic scoring needs real weight to anchor them.
-        # Context extraction uses 0.50 (terse metadata fields); module default is 0.85.
-        extraction_agent = DataExtractionAgent(
-            generator=generator,
+        pipeline = create_source_extraction_pipeline(
+            generator=create_generator("data_extraction"),
+            verification_generator=create_generator("verification"),
             coverage_check=extraction_cfg.get("coverage_check", True),
-            bm25_alpha=0.60,
         )
-        verification_agent = ExtractionVerificationAgent(generator=create_generator("verification"))
 
-        def _cb(label):
-            if progress_callback:
-                progress_callback(label)
+        # Wire progress callbacks onto the components (data_aggregation pattern):
+        # each stage emits its own label as it runs.
+        if progress_callback:
+            for name in ("pdf_converter", "preprocess", "extraction_agent", "verification_agent"):
+                pipeline.get_component(name).progress_callback = progress_callback
 
-        # Step 1: Convert PDF to markdown
-        pdf_result = pdf_converter.run(pdf_bytes=pdf_bytes, source_metadata=source_metadata)
-        pdf_status = pdf_result.get("extraction_status", "failed")
+        source_id = source_metadata.get('id', 'unknown')
+        source_title = source_metadata.get('title', '')
 
-        if pdf_status == "failed":
+        result = pipeline.run(
+            {
+                "pdf_converter": {"pdf_bytes": pdf_bytes, "source_metadata": source_metadata},
+                "preprocess": {"source_metadata": source_metadata},
+                "extraction_agent": {
+                    "species_name": species_name,
+                    "research_topic": research_topic,
+                    "search_terms": search_terms,
+                    "universal_id": universal_id,
+                    "session_id": session_id,
+                    "synonym_list": synonym_list,
+                },
+                "verification_agent": {
+                    "species_name": species_name,
+                    "research_topic": research_topic,
+                    "universal_id": universal_id,
+                    "source_id": source_id,
+                    "source_title": source_title,
+                    "extracted_data_dir": extracted_data_dir,
+                    "session_id": session_id,
+                },
+                "output_saver": {
+                    "universal_id": universal_id,
+                    "source_id": source_id,
+                    "research_topic": research_topic,
+                    "species_name": species_name,
+                    "extraction_type": "topic",
+                    "extracted_data_dir": extracted_data_dir,
+                    "save_output": save_output,
+                },
+            },
+            include_outputs_from={
+                "pdf_converter", "preprocess", "extraction_agent",
+                "verification_agent", "output_saver",
+            },
+        )
+
+        # ── Result-assembly shim: graph outputs → legacy return contract ──────────
+        # Reproduces the exact short-circuit semantics of the former inline returns.
+        pdf_out = result.get("pdf_converter", {})
+        if pdf_out.get("extraction_status") == "failed":
             return {
                 "extraction_status": "failed",
                 "extracted_data": {},
                 "output_filepath": None,
-                "error_message": f"PDF conversion failed: {pdf_result.get('error_message', 'Unknown PDF error')}",
+                "error_message": f"PDF conversion failed: {pdf_out.get('error_message', 'Unknown PDF error')}",
                 "fields_extracted": 0
             }
 
-        _cb("Converting PDF")
-        markdown_text = pdf_result["markdown_text"]
-
-        # Step 1b: Fill missing citation metadata from PDF text (only for manually
-        # uploaded sources where API fields like authors/year may be absent)
-        if not (source_metadata.get('authors') and source_metadata.get('publication_year')):
-            from functionalities.extraction.agents.citation_extractor import extract_citation_from_markdown
-            source_metadata = extract_citation_from_markdown(markdown_text, source_metadata)
-
-        # Step 2: Detect language — translate to English if needed
-        lang_result = detect_language(markdown_text)
-        if not lang_result["is_english"] and not lang_result["detection_failed"]:
-            lang_name = lang_result["language_name"]
-            lang_code = lang_result["language_code"]
-            print(f"[Language] Detected {lang_name} (confidence: {lang_result['confidence']:.0%}). Translating...")
-            trans_result = translate_to_english(markdown_text, lang_code)
-            source_metadata = {
-                **source_metadata,
-                "translated_from": lang_name,
-                "translation_failed": not trans_result["success"],
-                "translation_note": trans_result["translation_note"]
-            }
-            markdown_text = trans_result["translated_text"]
-            print(f"[Language] {trans_result['translation_note']}")
-        _cb("Detecting language")
-
-        # Step 2b: Strip boilerplate noise sections before extraction.
-        # Removes Acknowledgments, Funding, Author Contributions, Ethics,
-        # Supplementary Material, and References from the markdown so the LLM
-        # prompt and the ParagraphResolver index both see only content sections.
-        markdown_text = strip_noise_sections(markdown_text)
-
-        # Build a resolver for the verification agent to use for cross-referencing.
-        # This is a fresh instance (no used_char_starts state) so the verifier can
-        # query any paragraph in the document without the extraction dedup penalty.
-        verification_resolver = ParagraphResolver(markdown_text)
-
-        # Step 3: Extract structured data
-        extraction_result = extraction_agent.run(
-            markdown_text=markdown_text,
-            species_name=species_name,
-            research_topic=research_topic,
-            search_terms=search_terms,
-            universal_id=universal_id,
-            session_id=session_id,
-            synonym_list=synonym_list
-        )
-
-        _cb("Extracting data")
-        extraction_status = extraction_result.get("extraction_status", "failed")
-        raw_extracted_data = extraction_result.get("extracted_data", {})
-
-        # A real failure (PDF conversion or API error) carries an error_message.
-        if extraction_status == "failed":
+        extr = result.get("extraction_agent", {})
+        # A real failure (API error) carries an error_message + error_type.
+        if extr.get("extraction_status") == "failed":
             return {
                 "extraction_status": "failed",
                 "extracted_data": {},
                 "output_filepath": None,
-                "error_message": extraction_result.get("error_message", "Extraction failed"),
-                "error_type": extraction_result.get("error_type", "unknown"),
+                "error_message": extr.get("error_message", "Extraction failed"),
+                "error_type": extr.get("error_type", "unknown"),
                 "fields_extracted": 0
             }
 
-        # The extraction ran cleanly but the model found nothing relevant for this
-        # topic in this source — a legitimate empty result, not a failure.
+        raw_extracted_data = extr.get("extracted_data", {})
+        # Extraction ran cleanly but found nothing relevant — a legitimate empty result.
         if not raw_extracted_data:
             return {
                 "extraction_status": "no_data",
@@ -273,60 +304,31 @@ def run_source_extraction_pipeline(
                 "fields_extracted": 0
             }
 
-        # candidate_source_quote and pdf_page_index are populated inline by the
-        # DataExtractionAgent via its find_passage tool, so no separate source-anchor
-        # resolution step runs between extraction and verification.
-
-        # Step 4: Verify extracted data
-        verification_result = verification_agent.run(
-            extracted_data=raw_extracted_data,
-            source_text=markdown_text,
-            species_name=species_name,
-            research_topic=research_topic,
-            universal_id=universal_id,
-            source_id=source_metadata.get('id', 'unknown'),
-            source_title=source_metadata.get('title', ''),
-            extracted_data_dir=extracted_data_dir,
-            session_id=session_id,
-            paragraph_resolver=verification_resolver,
-        )
-
-        _cb("Verifying facts")
-        verified_data = verification_result.get("verified_data", {})
-        fields_removed = verification_result.get("fields_removed_count", 0)
+        verif = result.get("verification_agent", {})
+        verified_data = verif.get("verified_data", {})
+        fields_removed = verif.get("fields_removed_count", 0)
         fields_count = len(verified_data)
 
         if fields_removed > 0:
-            halluc = len(verification_result.get("removed_hallucinations", []))
-            wrong_sp = len(verification_result.get("removed_wrong_species", []))
+            halluc = len(verif.get("removed_hallucinations", []))
+            wrong_sp = len(verif.get("removed_wrong_species", []))
             print(f"Verification removed {fields_removed} field(s): "
                   f"{halluc} hallucination(s), {wrong_sp} wrong-species")
             print(f"Kept {fields_count} verified field(s)")
 
-        # Step 5: Save output
-        output_filepath = None
-        if save_output and verified_data:
-            save_result = save_extraction_output(
-                extracted_data=verified_data,
-                universal_id=universal_id,
-                source_id=source_metadata.get('id', 'unknown'),
-                research_topic=research_topic,
-                source_metadata=source_metadata,
-                species_name=species_name,
-                extraction_type="topic",
-                extracted_data_dir=extracted_data_dir
-            )
-            output_filepath = save_result["output_filepath"]
+        # Translation info comes from the (possibly updated) metadata the preprocess
+        # component emitted.
+        prep_meta = result.get("preprocess", {}).get("source_metadata", {})
 
         return {
             "extraction_status": "success",
             "extracted_data": verified_data,
-            "output_filepath": output_filepath,
+            "output_filepath": result.get("output_saver", {}).get("output_filepath"),
             "error_message": None,
             "fields_extracted": fields_count,
-            "translated_from": source_metadata.get("translated_from"),
-            "translation_note": source_metadata.get("translation_note"),
-            "translation_failed": source_metadata.get("translation_failed", False)
+            "translated_from": prep_meta.get("translated_from"),
+            "translation_note": prep_meta.get("translation_note"),
+            "translation_failed": prep_meta.get("translation_failed", False)
         }
 
     except Exception as e:
@@ -341,6 +343,96 @@ def run_source_extraction_pipeline(
             "error_message": f"Pipeline error: {str(e)}",
             "fields_extracted": 0
         }
+
+
+@component
+class ContextProcessor:
+    """Filter context extraction locally and persist it — the context path's terminal node.
+
+    Replaces the LLM verifier for context fields: the paper_summary schema is fixed, so
+    the structural checks in _filter_context_fields are sufficient (see that function's
+    docstring for why LLM verification is avoided here). No-ops on failed/empty input.
+    """
+
+    @component.output_types(
+        verified_data=Dict[str, Any],
+        output_filepath=Optional[str],
+        fields_extracted=int,
+    )
+    def run(
+        self,
+        extracted_data: Dict[str, Any],
+        extraction_status: str,
+        context_key: str,
+        universal_id: str,
+        source_id: str,
+        source_metadata: Dict[str, Any],
+        species_name: str,
+        extracted_data_dir: Optional[Path] = None,
+        save_output: bool = True,
+    ) -> Dict[str, Any]:
+        if extraction_status == "failed" or not extracted_data:
+            return {"verified_data": {}, "output_filepath": None, "fields_extracted": 0}
+
+        verified_data, _removed, fields_removed = _filter_context_fields(
+            extracted_data, _PAPER_SUMMARY_FIELDS)
+        if fields_removed > 0:
+            print(f"[Context] {context_key}: Local filter removed {fields_removed} field(s)")
+
+        output_filepath = None
+        if save_output and verified_data:
+            save_result = save_extraction_output(
+                extracted_data=verified_data,
+                universal_id=universal_id,
+                source_id=source_id,
+                research_topic=context_key,
+                source_metadata=source_metadata,
+                species_name=species_name,
+                extraction_type="context",
+                extracted_data_dir=extracted_data_dir,
+            )
+            output_filepath = save_result["output_filepath"]
+
+        return {
+            "verified_data": verified_data,
+            "output_filepath": output_filepath,
+            "fields_extracted": len(verified_data),
+        }
+
+
+def create_context_extraction_pipeline(generator: Any) -> Pipeline:
+    """Build the context (paper_summary) extraction pipeline as a Haystack graph.
+
+    Same shape as the topic pipeline (pdf_converter → pdf_router → preprocess →
+    extraction_agent) but ends in a local ContextProcessor (structural filter + save)
+    instead of the LLM verifier.
+    """
+    pipeline = Pipeline()
+
+    pipeline.add_component("pdf_converter", PDFToMarkdownConverter())
+    pipeline.add_component("pdf_router", ConditionalRouter(routes=[
+        {"condition": "{{ status != 'failed' }}", "output": "{{ markdown }}",
+         "output_name": "markdown_ok", "output_type": str},
+        {"condition": "{{ status == 'failed' }}", "output": "{{ markdown }}",
+         "output_name": "markdown_failed", "output_type": str},
+    ]))
+    pipeline.add_component("preprocess", MarkdownPreprocessor())
+    # coverage_check=False: the schema is fixed (7 named fields), so a second open-ended
+    # pass only generates hallucinated field names.
+    # bm25_alpha=0.50: context fields are terse metadata with zero BM25 token overlap.
+    pipeline.add_component("extraction_agent", DataExtractionAgent(
+        generator=generator, coverage_check=False, bm25_alpha=0.50))
+    pipeline.add_component("context_processor", ContextProcessor())
+
+    pipeline.connect("pdf_converter.markdown_text", "pdf_router.markdown")
+    pipeline.connect("pdf_converter.extraction_status", "pdf_router.status")
+    pipeline.connect("pdf_router.markdown_ok", "preprocess.markdown_text")
+    pipeline.connect("preprocess.markdown_text", "extraction_agent.markdown_text")
+    pipeline.connect("preprocess.source_metadata", "context_processor.source_metadata")
+    pipeline.connect("extraction_agent.extracted_data", "context_processor.extracted_data")
+    pipeline.connect("extraction_agent.extraction_status", "context_processor.extraction_status")
+
+    return pipeline
 
 
 def run_context_extraction_for_source(
@@ -377,150 +469,117 @@ def run_context_extraction_for_source(
     context_keys = ContextPromptRegistry.get_all_context_keys()
     source_id = source_metadata.get('id', 'unknown')
 
-    # Convert PDF to markdown once (shared across all context extractions)
-    pdf_converter = PDFToMarkdownConverter()
-    pdf_result = pdf_converter.run(pdf_bytes=pdf_bytes, source_metadata=source_metadata)
-
-    markdown_text = pdf_result.get("markdown_text", "")
-    pdf_status = pdf_result.get("extraction_status", "failed")
-
-    if pdf_status == "failed" or not markdown_text:
-        pdf_error = pdf_result.get("error_message", "Unknown PDF error")
-        return {
-            "context_status": "failed",
-            "context_results": {},
-            "context_keys_extracted": [],
-            "total_context_fields": 0,
-            "error_message": f"PDF conversion failed: {pdf_error}"
-        }
-
-    # Detect language — translate to English if needed (shared across all context extractions)
-    lang_result = detect_language(markdown_text)
-    if not lang_result["is_english"] and not lang_result["detection_failed"]:
-        lang_name = lang_result["language_name"]
-        lang_code = lang_result["language_code"]
-        print(f"[Language] Detected {lang_name} (confidence: {lang_result['confidence']:.0%}). Translating...")
-        trans_result = translate_to_english(markdown_text, lang_code)
-        source_metadata = {
-            **source_metadata,
-            "translated_from": lang_name,
-            "translation_failed": not trans_result["success"],
-            "translation_note": trans_result["translation_note"]
-        }
-        markdown_text = trans_result["translated_text"]
-        print(f"[Language] {trans_result['translation_note']}")
-
-    # Strip boilerplate noise sections before extraction (same as run_source_extraction_pipeline).
-    markdown_text = strip_noise_sections(markdown_text)
-
     # Use provided session_id (captured on main thread by caller) or fall back to current context
     if session_id is None:
         session_id = get_session_id()
 
-    # coverage_check disabled for context extraction: the schema is fixed (7 named fields),
-    # so a second open-ended pass only generates hallucinated field names.
-    # bm25_alpha=0.50: context fields are terse metadata (journal names, dates, locations)
-    # with zero BM25 token overlap. Lowering alpha lets semantic scoring carry the result.
-    # Topic extraction uses default alpha=0.85 (unchanged).
-    extraction_agent = DataExtractionAgent(
-        generator=create_generator("data_extraction"),
-        coverage_check=False,
-        bm25_alpha=0.50,
-    )
+    pipeline = create_context_extraction_pipeline(
+        generator=create_generator("data_extraction"))
 
-    context_results = {}
-    context_keys_extracted = []
+    context_results: Dict[str, Any] = {}
+    context_keys_extracted: List[str] = []
     total_fields = 0
+    translation_meta: Dict[str, Any] = {}
 
+    # context_keys is a single key today ('paper_summary'), so the full pipeline
+    # (incl. PDF conversion + preprocess) runs once per key. If context prompts
+    # multiply, hoist conversion/preprocess out of this loop to avoid re-parsing.
     for context_key in context_keys:
         print(f"[Context] Extracting {context_key} from source '{source_id}'...")
-
         try:
-            # Run extraction agent with context key as the research_topic
-            extraction_result = extraction_agent.run(
-                markdown_text=markdown_text,
-                species_name=species_name,
-                research_topic=context_key,
-                search_terms=[],  # Context prompts don't use search terms
-                universal_id=universal_id,
-                session_id=session_id
+            result = pipeline.run(
+                {
+                    "pdf_converter": {"pdf_bytes": pdf_bytes, "source_metadata": source_metadata},
+                    "preprocess": {"source_metadata": source_metadata},
+                    "extraction_agent": {
+                        "species_name": species_name,
+                        "research_topic": context_key,
+                        "search_terms": [],  # context prompts don't use search terms
+                        "universal_id": universal_id,
+                        "session_id": session_id,
+                    },
+                    "context_processor": {
+                        "context_key": context_key,
+                        "universal_id": universal_id,
+                        "source_id": source_id,
+                        "species_name": species_name,
+                        "extracted_data_dir": extracted_data_dir,
+                        "save_output": save_output,
+                    },
+                },
+                include_outputs_from={
+                    "pdf_converter", "preprocess", "extraction_agent", "context_processor",
+                },
             )
-
-            extraction_status = extraction_result.get("extraction_status", "failed")
-            raw_data = extraction_result.get("extracted_data", {})
-
-            if extraction_status == "failed":
-                context_results[context_key] = {
-                    "extraction_status": "failed",
-                    "extracted_data": {},
-                    "fields_extracted": 0,
-                    "error_message": extraction_result.get("error_message", "Extraction failed")
-                }
-                continue
-
-            if not raw_data:
-                context_results[context_key] = {
-                    "extraction_status": "no_data",
-                    "extracted_data": {},
-                    "fields_extracted": 0,
-                    "error_message": None
-                }
-                continue
-
-            # (anchor resolution removed) DataExtractionAgent populates
-            # candidate_source_quote and pdf_page_index via find_passage tool.
-
-            # Filter context fields locally — no LLM verification.
-            # LLM verification fires false positives on synthesized context values
-            # (value ≠ passage), causing 3–6/7 variance. Local structural checks
-            # (schema guard, passage_exists, dedup) are sufficient for fixed 7-field schema.
-            verified_data, _removed_ctx, fields_removed = _filter_context_fields(
-                raw_data,
-                _PAPER_SUMMARY_FIELDS,
-            )
-
-            if fields_removed > 0:
-                print(f"[Context] {context_key}: Local filter removed {fields_removed} field(s)")
-
-            fields_count = len(verified_data)
-
-            # Save if requested
-            output_filepath = None
-            if save_output and verified_data:
-                save_result = save_extraction_output(
-                    extracted_data=verified_data,
-                    universal_id=universal_id,
-                    source_id=source_id,
-                    research_topic=context_key,
-                    source_metadata=source_metadata,
-                    species_name=species_name,
-                    extraction_type="context",
-                    extracted_data_dir=extracted_data_dir
-                )
-                output_filepath = save_result["output_filepath"]
-
-            context_results[context_key] = {
-                "extraction_status": "success",
-                "extracted_data": verified_data,
-                "fields_extracted": fields_count,
-                "output_filepath": output_filepath,
-                "error_message": None
-            }
-
-            if fields_count > 0:
-                context_keys_extracted.append(context_key)
-                total_fields += fields_count
-
-            print(f"[Context] {context_key}: Extracted {fields_count} verified field(s)")
-
         except Exception as e:
             print(f"[Context] {context_key}: Failed with error: {e}")
             context_results[context_key] = {
                 "extraction_status": "failed",
                 "extracted_data": {},
                 "fields_extracted": 0,
-                "error_message": str(e)
+                "error_message": str(e),
             }
+            continue
+
+        # PDF failure aborts the whole source (matches the former pre-loop check).
+        pdf_out = result.get("pdf_converter", {})
+        if pdf_out.get("extraction_status") == "failed":
+            return {
+                "context_status": "failed",
+                "context_results": {},
+                "context_keys_extracted": [],
+                "total_context_fields": 0,
+                "error_message": f"PDF conversion failed: {pdf_out.get('error_message', 'Unknown PDF error')}",
+            }
+
+        # Capture translation info from the (possibly updated) preprocess metadata.
+        prep_meta = result.get("preprocess", {}).get("source_metadata", {})
+        if prep_meta.get("translated_from") and not translation_meta:
+            translation_meta = {
+                "translated_from": prep_meta["translated_from"],
+                "translation_failed": prep_meta.get("translation_failed", False),
+                "translation_note": prep_meta.get("translation_note", ""),
+            }
+
+        extr = result.get("extraction_agent", {})
+        extraction_status = extr.get("extraction_status", "failed")
+        raw_data = extr.get("extracted_data", {})
+
+        if extraction_status == "failed":
+            context_results[context_key] = {
+                "extraction_status": "failed",
+                "extracted_data": {},
+                "fields_extracted": 0,
+                "error_message": extr.get("error_message", "Extraction failed"),
+            }
+            continue
+
+        if not raw_data:
+            context_results[context_key] = {
+                "extraction_status": "no_data",
+                "extracted_data": {},
+                "fields_extracted": 0,
+                "error_message": None,
+            }
+            continue
+
+        proc = result.get("context_processor", {})
+        verified_data = proc.get("verified_data", {})
+        fields_count = len(verified_data)
+
+        context_results[context_key] = {
+            "extraction_status": "success",
+            "extracted_data": verified_data,
+            "fields_extracted": fields_count,
+            "output_filepath": proc.get("output_filepath"),
+            "error_message": None,
+        }
+
+        if fields_count > 0:
+            context_keys_extracted.append(context_key)
+            total_fields += fields_count
+
+        print(f"[Context] {context_key}: Extracted {fields_count} verified field(s)")
 
     overall_status = "success" if context_keys_extracted else "failed"
 
@@ -528,14 +587,12 @@ def run_context_extraction_for_source(
         "context_status": overall_status,
         "context_results": context_results,
         "context_keys_extracted": context_keys_extracted,
-        "total_context_fields": total_fields
+        "total_context_fields": total_fields,
     }
 
-    # Surface translation info at the top level so callers can show a banner
-    if source_metadata.get("translated_from"):
-        result["translated_from"] = source_metadata["translated_from"]
-        result["translation_failed"] = source_metadata.get("translation_failed", False)
-        result["translation_note"] = source_metadata.get("translation_note", "")
+    # Surface translation info at the top level so callers can show a banner.
+    if translation_meta:
+        result.update(translation_meta)
 
     return result
 
