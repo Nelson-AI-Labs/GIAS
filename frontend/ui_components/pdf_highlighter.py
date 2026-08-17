@@ -82,7 +82,7 @@ def _find_quote_rects(page, quote: str) -> list:
         return []
 
     try:
-        import fitz
+        import pymupdf as fitz
     except ImportError:
         return []
 
@@ -174,7 +174,7 @@ def slice_pdf_to_page(pdf_bytes: bytes, page_number: int) -> Optional[bytes]:
         Bytes of a single-page PDF, or None if fitz is unavailable / input is invalid.
     """
     try:
-        import fitz
+        import pymupdf as fitz
     except ImportError:
         return None
 
@@ -209,7 +209,7 @@ def annotate_pdf_with_highlights(
         Annotated PDF bytes, or None if fitz is unavailable / pdf_bytes is invalid.
     """
     try:
-        import fitz  # PyMuPDF
+        import pymupdf as fitz  # PyMuPDF
     except ImportError:
         return None
 

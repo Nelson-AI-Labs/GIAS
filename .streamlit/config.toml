@@ -40,7 +40,6 @@ borderColor              = "rgba(255,255,255,0.14)"
 # Hide the auto-generated nav so the custom journey spine (components.py) is
 # the sole navigation. st.navigation still handles routing; only the visual is suppressed.
 showSidebarNavigation = false
-initialSidebarState   = "expanded"
 
 [server]
 enableCORS            = false

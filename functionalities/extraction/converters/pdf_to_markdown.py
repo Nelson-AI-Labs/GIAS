@@ -24,7 +24,7 @@ except ImportError:
     _PYPDF_AVAILABLE = False
 
 try:
-    import fitz  # pymupdf
+    import pymupdf as fitz
     _FITZ_AVAILABLE = True
 except ImportError:
     _FITZ_AVAILABLE = False
